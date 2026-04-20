@@ -1,0 +1,57 @@
+{
+    "name": "alt-design/alt-google-maps-addon",
+    "description": "Interactive Google Maps location picker fieldtype for Statamic CMS with geocoding and Antlers tags",
+    "type": "statamic-addon",
+    "keywords": [
+        "statamic",
+        "addon",
+        "google-maps",
+        "fieldtype",
+        "location",
+        "geocoding"
+    ],
+    "license": "MIT",
+    "version": "1.0.0",
+    "authors": [
+        {
+            "name": "alt-design",
+            "email": "adriana@alt-design.net"
+        }
+    ],
+    "require": {
+        "php": "^8.1",
+        "statamic/cms": "^5.0|^6.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^10.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "AltDesign\\AltGoogleMapsAddon\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AltDesign\\AltGoogleMapsAddon\\Tests\\": "tests"
+        }
+    },
+    "extra": {
+        "statamic": {
+            "name": "Alt Google Maps",
+            "description": "Interactive Google Maps location picker fieldtype"
+        },
+        "laravel": {
+            "providers": [
+                "AltDesign\\AltGoogleMapsAddon\\ServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pixelfear/composer-dist-plugin": true
+        },
+        "optimize-autoloader": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
