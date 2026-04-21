@@ -15,8 +15,8 @@ A location picker fieldtype for [Statamic CMS](https://statamic.com) with suppor
 - PHP 8.1+
 - Statamic 5 or 6
 - **Google Maps** provider: a Google Maps API key with these APIs enabled:
-  - **Maps JavaScript API** — renders the interactive map in the CP and on the frontend
-  - **Geocoding API** — address search and reverse geocoding (click-to-place, drag-to-move)
+    - **Maps JavaScript API** — renders the interactive map in the CP and on the frontend
+    - **Geocoding API** — address search and reverse geocoding (click-to-place, drag-to-move)
 - **OpenStreetMap** provider: no API key required (uses Nominatim for geocoding)
 
 ## Installation
@@ -31,6 +31,12 @@ Then publish the config file:
 
 ```bash
 php artisan vendor:publish --tag=statamic-google-maps-config
+```
+
+Optionally publish the views if you need to customise the CP settings page:
+
+```bash
+php artisan vendor:publish --tag=statamic-google-maps-views
 ```
 
 ## Configuration
@@ -52,6 +58,20 @@ GOOGLE_MAPS_DEFAULT_ZOOM=13
 
 You can also configure these settings via the CP under **Tools → Google Maps**. Values saved there take priority over `.env` — to reset, delete `storage/app/statamic/google-maps-settings.json`.
 
+### Config file
+
+After publishing, `config/statamic-google-maps.php` exposes additional options:
+
+| Key             | Default     | Description                                                           |
+| --------------- | ----------- | --------------------------------------------------------------------- |
+| `api_key`       | `''`        | Google Maps API key (reads `GOOGLE_MAPS_API_KEY`)                     |
+| `map_provider`  | `'google'`  | `'google'` or `'osm'` (reads `GOOGLE_MAPS_PROVIDER`)                  |
+| `defaults.lat`  | `null`      | Default latitude                                                      |
+| `defaults.lng`  | `null`      | Default longitude                                                     |
+| `defaults.zoom` | `13`        | Default zoom level                                                    |
+| `map_height`    | `420`       | Map height in pixels (CP fieldtype default)                           |
+| `map_type`      | `'roadmap'` | Google Maps type: `'roadmap'`, `'satellite'`, `'terrain'`, `'hybrid'` |
+
 ## Map Provider
 
 ### Google Maps (`GOOGLE_MAPS_PROVIDER=google`)
@@ -65,6 +85,7 @@ No API key required. Uses [Leaflet](https://leafletjs.com) with OpenStreetMap ti
 > **Note:** Nominatim calls are always proxied server-side (never from the browser) to comply with Nominatim's terms of service.
 
 Both providers support the same fieldtype interactions:
+
 - **Address search** — type a query and click Search (or press Enter) to pan the map and fill all fields
 - **Click-to-place** — click anywhere on the map to drop a pin; coordinates and address fill automatically
 - **Drag-to-move** — drag the marker to adjust position; address updates on drop
@@ -76,11 +97,38 @@ Both providers support the same fieldtype interactions:
 ### In a Blueprint or Fieldset
 
 ```yaml
--
-  handle: location
+- handle: location
   field:
-    type: google_maps
-    display: Location
+      type: google_maps
+      display: Location
+```
+
+All field-level config options are optional and override the global defaults for that specific field:
+
+| Option          | Type    | Default          | Description                                                              |
+| --------------- | ------- | ---------------- | ------------------------------------------------------------------------ |
+| `map_provider`  | select  | _(site default)_ | `'google'` or `'osm'` — overrides the global setting for this field only |
+| `default_lat`   | text    | _(site default)_ | Starting latitude for new entries                                        |
+| `default_lng`   | text    | _(site default)_ | Starting longitude for new entries                                       |
+| `default_zoom`  | integer | `13`             | Initial zoom level (1 = world, 20 = building)                            |
+| `map_height`    | integer | `420`            | Map height in pixels                                                     |
+| `enable_search` | toggle  | `true`           | Show/hide the address search bar                                         |
+| `enable_click`  | toggle  | `true`           | Enable click-to-place on the map                                         |
+
+Example with custom options:
+
+```yaml
+- handle: location
+  field:
+      type: google_maps
+      display: Location
+      map_provider: osm
+      default_lat: -23.5505
+      default_lng: -46.6333
+      default_zoom: 12
+      map_height: 300
+      enable_search: true
+      enable_click: true
 ```
 
 ### In Antlers Templates (standalone field)
@@ -217,15 +265,15 @@ When the `google_maps` field is inside a Replicator or Bard set, use **colon not
 
 ### Available variables
 
-| Variable | Type | Description |
-|---|---|---|
-| `lat` | float | Latitude |
-| `lng` | float | Longitude |
-| `zoom` | int | Zoom level (1–21) |
-| `address` | string | Address string (if set via search, click, or drag) |
-| `google_maps_url` | string | Link to Google Maps at this location |
-| `directions_url` | string | Link to Google Maps directions to this location |
-| `static_map_url` | string | Static map image URL (Google provider only; requires API key) |
+| Variable          | Type   | Description                                                   |
+| ----------------- | ------ | ------------------------------------------------------------- |
+| `lat`             | float  | Latitude                                                      |
+| `lng`             | float  | Longitude                                                     |
+| `zoom`            | int    | Zoom level (1–21)                                             |
+| `address`         | string | Address string (if set via search, click, or drag)            |
+| `google_maps_url` | string | Link to Google Maps at this location                          |
+| `directions_url`  | string | Link to Google Maps directions to this location               |
+| `static_map_url`  | string | Static map image URL (Google provider only; requires API key) |
 
 ## License
 
