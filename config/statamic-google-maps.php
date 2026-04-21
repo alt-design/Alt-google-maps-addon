@@ -11,4 +11,7 @@ return [
     
     'map_height' => 420,
     'map_type' => 'roadmap',
+
+    // Map provider: 'google' (requires API key) or 'osm' (OpenStreetMap, no key needed)
+    'map_provider' => env('GOOGLE_MAPS_PROVIDER', 'google'),
 ];

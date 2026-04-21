@@ -55,25 +55,29 @@ class ServiceProvider extends AddonServiceProvider
 
         if (! $this->app->runningInConsole()) {
             $storageFile = storage_path('app/statamic/google-maps-settings.json');
-            $storedDefaults = [];
+            $stored = [];
             if (file_exists($storageFile)) {
                 $data = json_decode(file_get_contents($storageFile), true);
                 if (is_array($data)) {
-                    $storedDefaults = $data;
+                    $stored = $data;
                 }
             }
 
             $defaults = array_merge(
                 (array) config('statamic-google-maps.defaults'),
-                $storedDefaults
+                array_filter(
+                    array_intersect_key($stored, ['lat' => 1, 'lng' => 1, 'zoom' => 1]),
+                    fn ($v) => $v !== null
+                )
             );
 
             \Statamic\Statamic::provideToScript([
                 'googleMaps' => [
-                    'api_key'    => config('statamic-google-maps.api_key'),
-                    'defaults'   => $defaults,
-                    'map_height' => config('statamic-google-maps.map_height', 420),
-                    'map_type'   => config('statamic-google-maps.map_type', 'roadmap'),
+                    'api_key'      => config('statamic-google-maps.api_key'),
+                    'map_provider' => $stored['map_provider'] ?? config('statamic-google-maps.map_provider', 'google'),
+                    'defaults'     => $defaults,
+                    'map_height'   => config('statamic-google-maps.map_height', 420),
+                    'map_type'     => config('statamic-google-maps.map_type', 'roadmap'),
                 ],
             ]);
         }

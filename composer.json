@@ -1,14 +1,13 @@
 {
     "name": "alt-design/alt-google-maps-addon",
-    "description": "Interactive Google Maps location picker fieldtype for Statamic CMS with geocoding and Antlers tags",
+    "description": "Google Maps location fieldtype for Statamic CMS — stores lat, lng, zoom and address, with Antlers tags for frontend rendering.",
     "type": "statamic-addon",
     "keywords": [
         "statamic",
         "addon",
         "google-maps",
         "fieldtype",
-        "location",
-        "geocoding"
+        "location"
     ],
     "license": "MIT",
     "version": "1.0.0",

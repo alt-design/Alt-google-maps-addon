@@ -4,6 +4,8 @@ namespace AltDesign\AltGoogleMapsAddon\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Statamic\CP\PublishForm;
+use Statamic\Fields\BlueprintRepository;
 
 class SettingsController extends Controller
 {
@@ -16,27 +18,46 @@ class SettingsController extends Controller
 
     public function index()
     {
-        return view('alt-google-maps-addon::settings', [
-            'defaults' => $this->getDefaults(),
-        ]);
+        $blueprint = $this->getBlueprint();
+        $fields = $blueprint->fields()->addValues($this->getDefaults())->preProcess();
+
+        return PublishForm::make($blueprint)
+            ->title('Google Maps')
+            ->icon('pin')
+            ->values($fields->values()->toArray())
+            ->submittingTo(cp_route('google-maps.settings.store'), 'POST');
     }
 
-    public function store(Request $request)
+    public function store(Request $request): bool
     {
-        $validated = $request->validate([
-            'lat'  => 'required|numeric|between:-90,90',
-            'lng'  => 'required|numeric|between:-180,180',
-            'zoom' => 'required|integer|between:1,21',
-        ]);
+        $blueprint = $this->getBlueprint();
+        $fields = $blueprint->fields()->addValues($request->all());
+        $fields->validate();
+
+        $values = $fields->process()->values();
+
+        $data = [
+            'lat'          => $values->get('lat') !== null && $values->get('lat') !== '' ? (float) $values->get('lat') : null,
+            'lng'          => $values->get('lng') !== null && $values->get('lng') !== '' ? (float) $values->get('lng') : null,
+            'zoom'         => $values->get('zoom') !== null ? (int) $values->get('zoom') : 13,
+            'map_provider' => in_array($values->get('map_provider'), ['google', 'osm']) ? $values->get('map_provider') : 'google',
+        ];
 
         $dir = dirname($this->storageFile);
         if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
 
-        file_put_contents($this->storageFile, json_encode($validated));
+        file_put_contents($this->storageFile, json_encode($data));
 
-        return response()->json(['success' => true]);
+        return true;
+    }
+
+    private function getBlueprint()
+    {
+        return with(new BlueprintRepository)
+            ->setDirectory(__DIR__ . '/../../../resources/blueprints')
+            ->find('settings');
     }
 
     private function getDefaults(): array
@@ -49,9 +70,10 @@ class SettingsController extends Controller
         }
 
         return [
-            'lat'  => config('statamic-google-maps.defaults.lat'),
-            'lng'  => config('statamic-google-maps.defaults.lng'),
-            'zoom' => config('statamic-google-maps.defaults.zoom', 13),
+            'lat'          => config('statamic-google-maps.defaults.lat'),
+            'lng'          => config('statamic-google-maps.defaults.lng'),
+            'zoom'         => config('statamic-google-maps.defaults.zoom', 13),
+            'map_provider' => config('statamic-google-maps.map_provider', 'google'),
         ];
     }
 }

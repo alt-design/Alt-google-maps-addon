@@ -89,6 +89,18 @@ class GoogleMapsFieldtype extends Fieldtype
     protected function configFieldItems(): array
     {
         return [
+            'map_provider' => [
+                'display'      => 'Map Provider',
+                'instructions' => 'Override the global map provider for this field. Leave blank to use the site default (Tools → Google Maps).',
+                'type'         => 'select',
+                'options'      => [
+                    ''      => 'Use site default',
+                    'google' => 'Google Maps',
+                    'osm'    => 'OpenStreetMap (no API key needed)',
+                ],
+                'default'      => '',
+                'width'        => 50,
+            ],
             'default_zoom' => [
                 'display'      => 'Default Zoom',
                 'instructions' => 'Nível de zoom inicial (1 = mundo, 20 = edifício).',
