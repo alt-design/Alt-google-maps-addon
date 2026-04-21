@@ -47,7 +47,7 @@ Add to your `.env`:
 # Required for Google Maps provider only
 GOOGLE_MAPS_API_KEY=your_api_key_here
 
-# Map provider: 'google' (default) or 'osm' (no API key needed)
+# Map provider: 'google' (requires API key) or 'osm' (OpenStreetMap, no key needed)
 GOOGLE_MAPS_PROVIDER=google
 
 # Optional: default coordinates for new fields (leave blank for no default)
