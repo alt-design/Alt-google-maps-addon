@@ -1,6 +1,6 @@
 # Alt Google Maps Addon for Statamic
 
-A location picker fieldtype for [Statamic CMS](https://statamic.com) with support for both Google Maps and OpenStreetMap. Adds a `google_maps` fieldtype with an interactive map, address search, click-to-place, and drag-to-move — plus a CP settings page to configure defaults.
+A location picker fieldtype for [Statamic CMS](https://statamic.com) with support for both Google Maps and OpenStreetMap. Adds a `google_maps` fieldtype with an interactive map, address search, click-to-place, and drag-to-move, plus a CP settings page to configure defaults.
 
 ## Features
 
@@ -72,15 +72,49 @@ After publishing, `config/statamic-google-maps.php` exposes additional options:
 | `map_height`    | `420`       | Map height in pixels (CP fieldtype default)                           |
 | `map_type`      | `'roadmap'` | Google Maps type: `'roadmap'`, `'satellite'`, `'terrain'`, `'hybrid'` |
 
+## Override Hierarchy
+
+Settings are resolved from **highest to lowest priority** — a higher source always wins.
+
+### Map provider
+
+| Priority    | Source                                   | How to set                                          |
+| ----------- | ---------------------------------------- | --------------------------------------------------- |
+| 1 — highest | Per-field config in blueprint / fieldset | `map_provider: osm` on the field                    |
+| 2           | CP Settings page                         | **Tools → Google Maps** → save                      |
+| 3           | `.env`                                   | `GOOGLE_MAPS_PROVIDER=google`                       |
+| 4 — lowest  | Config file                              | `map_provider` in `config/statamic-google-maps.php` |
+
+The CP Settings page writes to `storage/app/statamic/google-maps-settings.json`. This file overrides the runtime config at boot, so anything reading `config('statamic-google-maps.map_provider')` sees the CP value, not `.env`. To revert to `.env`, delete that JSON file.
+
+The resolved provider is also exposed as an **augmented variable** (`map_provider`) on each field value — your Antlers templates can read it directly without touching global config (see [Available variables](#available-variables)).
+
+### Default coordinates and zoom
+
+| Priority    | Source                                   | How to set                                                                       |
+| ----------- | ---------------------------------------- | -------------------------------------------------------------------------------- |
+| 1 — highest | Per-field config in blueprint / fieldset | `default_lat`, `default_lng`, `default_zoom` on the field                        |
+| 2           | CP Settings page                         | **Tools → Google Maps** → Default Location                                       |
+| 3           | `.env`                                   | `GOOGLE_MAPS_DEFAULT_LAT`, `GOOGLE_MAPS_DEFAULT_LNG`, `GOOGLE_MAPS_DEFAULT_ZOOM` |
+| 4 — lowest  | Config file                              | `defaults.lat`, `defaults.lng`, `defaults.zoom`                                  |
+
+Leaving a per-field value **blank** means "inherit from the next level down". For example, an empty `default_lat` on the field falls through to the CP / `.env` site default. Each value is independent — you can override only the zoom and let lat/lng come from the site default.
+
+> **Tip:** Per-field defaults only apply to **new (empty) entries**. Once a location is saved, those stored coordinates are used instead.
+
 ## Map Provider
 
 ### Google Maps (`GOOGLE_MAPS_PROVIDER=google`)
 
-Requires a Google Maps API key with the Maps JavaScript API and Geocoding API enabled. Renders a full Google Map in the CP fieldtype and on the frontend.
+Requires a Google Maps API key with the **Maps JavaScript API** and **Geocoding API** enabled. Renders a full Google Map in the CP fieldtype and on the frontend.
+
+> **Note:** Address search, click-to-place, and drag-to-move geocoding are all performed **client-side** via `google.maps.Geocoder`. This means **browser-restricted API keys work correctly** — no additional server-side configuration is needed.
 
 ### OpenStreetMap (`GOOGLE_MAPS_PROVIDER=osm`)
 
-No API key required. Uses [Leaflet](https://leafletjs.com) with OpenStreetMap tiles for the map, and [Nominatim](https://nominatim.org) for address search and reverse geocoding. Leaflet (~44 kB gzipped) is loaded on demand — only when the OSM provider is active.
+No API key required. Uses [Leaflet](https://leafletjs.com) to render the map in the browser (canvas, markers, zoom, pan), with [OpenStreetMap](https://www.openstreetmap.org) as the tile provider (the map imagery). Uses [Nominatim](https://nominatim.org) for address search and reverse geocoding. Leaflet (~44 kB gzipped) is loaded on demand — only when the OSM provider is active.
+
+> **Note:** OpenStreetMap provides the map imagery (tiles) via `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`. Leaflet is the JavaScript library that handles rendering, events, markers, and zoom in the browser. The two are separate — you could swap the tile provider without changing Leaflet.
 
 > **Note:** Nominatim calls are always proxied server-side (never from the browser) to comply with Nominatim's terms of service.
 
@@ -108,9 +142,9 @@ All field-level config options are optional and override the global defaults for
 | Option          | Type    | Default          | Description                                                              |
 | --------------- | ------- | ---------------- | ------------------------------------------------------------------------ |
 | `map_provider`  | select  | _(site default)_ | `'google'` or `'osm'` — overrides the global setting for this field only |
-| `default_lat`   | text    | _(site default)_ | Starting latitude for new entries                                        |
-| `default_lng`   | text    | _(site default)_ | Starting longitude for new entries                                       |
-| `default_zoom`  | integer | `13`             | Initial zoom level (1 = world, 20 = building)                            |
+| `default_lat`   | float   | _(site default)_ | Starting latitude for new entries — blank to inherit from site default   |
+| `default_lng`   | float   | _(site default)_ | Starting longitude for new entries — blank to inherit from site default  |
+| `default_zoom`  | integer | _(site default)_ | Initial zoom level (1 = world, 20 = building) — blank = site default     |
 | `map_height`    | integer | `420`            | Map height in pixels                                                     |
 | `enable_search` | toggle  | `true`           | Show/hide the address search bar                                         |
 | `enable_click`  | toggle  | `true`           | Enable click-to-place on the map                                         |
@@ -133,15 +167,14 @@ Example with custom options:
 
 ### In Antlers Templates (standalone field)
 
-The frontend map respects the active `map_provider`. Use `{{ config:statamic-google-maps:map_provider }}` to conditionally render Leaflet (OSM) or Google Maps (Google):
+The frontend map respects the active `map_provider`. Inside a `{{ location }}` tag pair, `map_provider` is an **augmented variable** that already reflects any per-field override — use it directly rather than reading the global config:
 
 ```antlers
 {{ if location }}
     {{ location }}
         <div id="map-{{ lat }}-{{ lng }}" style="height: 420px; width: 100%;"></div>
-        {{ if address }}<p>{{ address }}</p>{{ /if }}
 
-        {{ if config:statamic-google-maps:map_provider == 'osm' }}
+        {{ if map_provider == 'osm' }}
             <link rel="stylesheet" href="https://unpkg.com/leaflet@1/dist/leaflet.css" crossorigin="">
             <script>
                 (function() {
@@ -202,12 +235,15 @@ The frontend map respects the active `map_provider`. Use `{{ config:statamic-goo
 
 When the `google_maps` field is inside a Replicator or Bard set, use **colon notation** to access its properties — the tag pair scope does not work in this context. Use `{{ id }}` (the set's unique ID) as the map element's `id` to avoid conflicts when multiple maps appear on the same page.
 
+`map_provider` is also available via colon notation as `google_maps_field:map_provider` — it already reflects any per-field override, so prefer it over the global config tag.
+
+> **Note:** Antlers does not support ternary expressions (`? :`) with colon-notation variable names. Use `{{ if }}...{{ else }}...{{ /if }}` instead when branching on `google_maps_field:lat` inside a Replicator set.
+
 ```antlers
 {{ if google_maps_field:lat }}
     <div id="gmap-{{ id }}" style="height: 420px; width: 100%;"></div>
-    {{ if google_maps_field:address }}<p>{{ google_maps_field:address }}</p>{{ /if }}
 
-    {{ if config:statamic-google-maps:map_provider == 'osm' }}
+    {{ if google_maps_field:map_provider == 'osm' }}
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1/dist/leaflet.css" crossorigin="">
         <script>
             (function() {
@@ -263,17 +299,46 @@ When the `google_maps` field is inside a Replicator or Bard set, use **colon not
 {{ /if }}
 ```
 
+### In a Page Builder `form_row` Set (map alongside a form)
+
+If your page builder has a `form_row` Replicator set, you can add a `google_maps_field` directly to that set. The template will then render the map and the form side by side in a two-column grid — the map on the left, the form on the right. When no location is set, the layout collapses to a single-column form with a narrower `max-width`.
+
+Add the field to the set in your fieldset YAML:
+
+```yaml
+form_row:
+    display: "Form Row"
+    fields:
+        - import: heading
+          prefix: form_
+        - handle: form
+          field:
+              type: form
+              max_items: 1
+              display: Form
+        - handle: google_maps_field
+          field:
+              type: google_maps
+              display: "Map (optional)"
+              instructions: "Show a map alongside the form. Leave empty to hide."
+        - import: button
+```
+
+> **Note:** Antlers does not support ternary expressions (`? :`) with colon-notation variable names. Use `{{ if }}...{{ else }}...{{ /if }}` instead when branching on `google_maps_field:lat` inside a Replicator set.
+
 ### Available variables
 
-| Variable          | Type   | Description                                                   |
-| ----------------- | ------ | ------------------------------------------------------------- |
-| `lat`             | float  | Latitude                                                      |
-| `lng`             | float  | Longitude                                                     |
-| `zoom`            | int    | Zoom level (1–21)                                             |
-| `address`         | string | Address string (if set via search, click, or drag)            |
-| `google_maps_url` | string | Link to Google Maps at this location                          |
-| `directions_url`  | string | Link to Google Maps directions to this location               |
-| `static_map_url`  | string | Static map image URL (Google provider only; requires API key) |
+| Variable          | Type   | Description                                                                        |
+| ----------------- | ------ | ---------------------------------------------------------------------------------- |
+| `lat`             | float  | Latitude                                                                           |
+| `lng`             | float  | Longitude                                                                          |
+| `zoom`            | int    | Zoom level (1–21)                                                                  |
+| `address`         | string | Address string (if set via search, click, or drag)                                 |
+| `map_provider`    | string | Resolved provider for this field: `'google'` or `'osm'` (per-field → site default) |
+| `map_height`      | int    | Resolved map height in pixels (per-field → site default)                           |
+| `google_maps_url` | string | Link to Google Maps at this location                                               |
+| `directions_url`  | string | Link to Google Maps directions to this location                                    |
+| `static_map_url`  | string | Static map image URL (Google provider only; requires API key)                      |
 
 ## License
 

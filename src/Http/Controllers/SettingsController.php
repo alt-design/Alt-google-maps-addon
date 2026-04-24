@@ -57,7 +57,7 @@ class SettingsController extends Controller
     {
         return with(new BlueprintRepository)
             ->setDirectory(__DIR__ . '/../../../resources/blueprints')
-            ->find('settings');
+            ->find('google_maps_settings');
     }
 
     private function getDefaults(): array

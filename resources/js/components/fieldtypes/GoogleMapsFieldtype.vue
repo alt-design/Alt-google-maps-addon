@@ -142,14 +142,20 @@ const mapHeight = computed(() => globalConfig.value.map_height || 420);
 const defaultZoom = computed(() =>
     parseInt(props.config.default_zoom) || globalConfig.value.defaults?.zoom || 13
 );
+const defaultLat = computed(() =>
+    parseFloat(props.config.default_lat) || globalConfig.value.defaults?.lat || null
+);
+const defaultLng = computed(() =>
+    parseFloat(props.config.default_lng) || globalConfig.value.defaults?.lng || null
+);
 
 // Ref (not computed) so inputs update immediately without waiting for Statamic's props cycle
 const internalValue = ref(
-    props.value && typeof props.value === 'object'
+    props.value && typeof props.value === 'object' && props.value.lat != null
         ? { ...props.value }
         : {
-            lat: globalConfig.value.defaults?.lat ?? null,
-            lng: globalConfig.value.defaults?.lng ?? null,
+            lat: defaultLat.value,
+            lng: defaultLng.value,
             address: '',
             zoom: defaultZoom.value,
         }
@@ -202,8 +208,8 @@ async function initLeaflet() {
         shadowUrl:     new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).href,
     });
 
-    const lat  = internalValue.value.lat  ?? (globalConfig.value.defaults?.lat ?? 0);
-    const lng  = internalValue.value.lng  ?? (globalConfig.value.defaults?.lng ?? 0);
+    const lat  = internalValue.value.lat  ?? (defaultLat.value ?? 0);
+    const lng  = internalValue.value.lng  ?? (defaultLng.value ?? 0);
     const zoom = hasLocation.value ? (internalValue.value.zoom || defaultZoom.value) : 2;
 
     mapInstance = L.map(mapEl.value, { center: [lat, lng], zoom });
@@ -247,8 +253,8 @@ async function initGoogleMaps() {
     }
     await loadGoogleMapsScript();
 
-    const lat  = internalValue.value.lat  ?? (globalConfig.value.defaults?.lat ?? 0);
-    const lng  = internalValue.value.lng  ?? (globalConfig.value.defaults?.lng ?? 0);
+    const lat  = internalValue.value.lat  ?? (defaultLat.value ?? 0);
+    const lng  = internalValue.value.lng  ?? (defaultLng.value ?? 0);
     const zoom = hasLocation.value ? (internalValue.value.zoom || defaultZoom.value) : 2;
 
     mapInstance = new window.google.maps.Map(mapEl.value, {
@@ -360,11 +366,16 @@ async function onMapPick(lat, lng) {
     _fromMapInteraction = false;
 
     try {
-        const body = { lat, lng };
-        if (mapProvider.value === 'osm') body.provider = 'osm';
-        const data = await postCp('google-maps/reverse-geocode', body);
-        if (data.success) {
-            update({ ...internalValue.value, lat, lng, address: data.result.address });
+        let address = null;
+        if (mapProvider.value === 'osm') {
+            const data = await postCp('google-maps/reverse-geocode', { lat, lng, provider: 'osm' });
+            if (data.success) address = data.result.address;
+        } else {
+            // Use the JS API Geocoder — works with browser-restricted API keys
+            address = await googleReverseGeocode(lat, lng);
+        }
+        if (address) {
+            update({ ...internalValue.value, lat, lng, address });
         }
     } catch { /* reverse geocode failure is non-fatal */ }
 }
@@ -377,16 +388,25 @@ async function search() {
     searchError.value = '';
 
     try {
-        const body = { address: q };
-        if (mapProvider.value === 'osm') body.provider = 'osm';
-        const data = await postCp('google-maps/geocode', body);
+        let lat, lng, address;
 
-        if (!data.success) {
-            searchError.value = data.message || 'Location not found.';
-            return;
+        if (mapProvider.value === 'osm') {
+            const data = await postCp('google-maps/geocode', { address: q, provider: 'osm' });
+            if (!data.success) {
+                searchError.value = data.message || 'Location not found.';
+                return;
+            }
+            ({ lat, lng, address } = data.result);
+        } else {
+            // Use the JS API Geocoder — works with browser-restricted API keys
+            const result = await googleGeocode(q);
+            if (!result) {
+                searchError.value = 'No results found.';
+                return;
+            }
+            ({ lat, lng, address } = result);
         }
 
-        const { lat, lng, address } = data.result;
         const currentZoom = Math.max(internalValue.value.zoom || defaultZoom.value, 12);
         update({ ...internalValue.value, lat, lng, address, zoom: currentZoom });
 
@@ -401,20 +421,56 @@ async function search() {
             if (mapInstance.getZoom() < 12) mapInstance.setZoom(12);
         }
     } catch (err) {
-        searchError.value = err?.response?.data?.message || err?.message || 'Search failed. Please try again.';
+        searchError.value = err?.message || 'Search failed. Please try again.';
     } finally {
         isSearching.value = false;
     }
 }
 
+// ─── Client-side Google geocoding (uses Maps JS API — respects browser-restricted keys) ──
+
+function googleGeocode(address) {
+    return new Promise((resolve, reject) => {
+        if (!window.google?.maps?.Geocoder) {
+            reject(new Error('Google Maps is not loaded.'));
+            return;
+        }
+        const geocoder = new window.google.maps.Geocoder();
+        geocoder.geocode({ address }, (results, status) => {
+            if (status === 'OK' && results?.length) {
+                resolve({
+                    lat:     results[0].geometry.location.lat(),
+                    lng:     results[0].geometry.location.lng(),
+                    address: results[0].formatted_address,
+                });
+            } else if (status === 'ZERO_RESULTS') {
+                resolve(null);
+            } else {
+                reject(new Error(`Geocoding failed (${status}).`));
+            }
+        });
+    });
+}
+
+function googleReverseGeocode(lat, lng) {
+    return new Promise((resolve) => {
+        if (!window.google?.maps?.Geocoder) { resolve(null); return; }
+        const geocoder = new window.google.maps.Geocoder();
+        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+            resolve(status === 'OK' && results?.length ? results[0].formatted_address : null);
+        });
+    });
+}
+
 async function postCp(path, body) {
-    // Use $axios from Vue global properties (captured synchronously during setup)
-    const $axios = _instance?.appContext?.config?.globalProperties?.$axios;
+    // In Vue 2.7, getCurrentInstance().proxy holds the component's `this` — which has $axios.
+    // (Vue 3's appContext.config.globalProperties path doesn't exist in Vue 2.7)
+    const $axios = _instance?.proxy?.$axios;
     if ($axios) {
         const resp = await $axios.post(`/cp/${path}`, body);
         return resp.data;
     }
-    // Fetch fallback
+    // Fetch fallback — used if $axios is unavailable for any reason
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
     const resp = await fetch(`/cp/${path}`, {
         method: 'POST',

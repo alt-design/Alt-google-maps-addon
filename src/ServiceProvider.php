@@ -47,35 +47,41 @@ class ServiceProvider extends AddonServiceProvider
         );
 
         \Statamic\Facades\CP\Nav::extend(function ($nav) {
-            $nav->create('Google Maps')
+            $nav->create('Alt Google Maps')
                 ->section('Tools')
                 ->route('google-maps.settings')
                 ->icon('pin');
         });
 
-        if (! $this->app->runningInConsole()) {
-            $storageFile = storage_path('app/statamic/google-maps-settings.json');
-            $stored = [];
-            if (file_exists($storageFile)) {
-                $data = json_decode(file_get_contents($storageFile), true);
-                if (is_array($data)) {
-                    $stored = $data;
-                }
+        // Load settings saved via Tools → Google Maps and override the runtime config.
+        // This ensures {{ config:statamic-google-maps:map_provider }} in Antlers templates,
+        // config() calls in PHP, and the Antlers tag all read the same resolved value —
+        // regardless of what GOOGLE_MAPS_PROVIDER is set to in .env.
+        $storageFile = storage_path('app/statamic/google-maps-settings.json');
+        $stored = [];
+        if (file_exists($storageFile)) {
+            $data = json_decode(file_get_contents($storageFile), true);
+            if (is_array($data)) {
+                $stored = $data;
             }
+        }
 
-            $defaults = array_merge(
-                (array) config('statamic-google-maps.defaults'),
-                array_filter(
-                    array_intersect_key($stored, ['lat' => 1, 'lng' => 1, 'zoom' => 1]),
-                    fn ($v) => $v !== null
-                )
-            );
+        if (isset($stored['map_provider']) && in_array($stored['map_provider'], ['google', 'osm'], true)) {
+            config(['statamic-google-maps.map_provider' => $stored['map_provider']]);
+        }
 
+        foreach (['lat', 'lng', 'zoom'] as $key) {
+            if (array_key_exists($key, $stored) && $stored[$key] !== null) {
+                config(["statamic-google-maps.defaults.$key" => $stored[$key]]);
+            }
+        }
+
+        if (! $this->app->runningInConsole()) {
             \Statamic\Statamic::provideToScript([
                 'googleMaps' => [
                     'api_key'      => config('statamic-google-maps.api_key'),
-                    'map_provider' => $stored['map_provider'] ?? config('statamic-google-maps.map_provider', 'google'),
-                    'defaults'     => $defaults,
+                    'map_provider' => config('statamic-google-maps.map_provider'),
+                    'defaults'     => config('statamic-google-maps.defaults'),
                     'map_height'   => config('statamic-google-maps.map_height', 420),
                     'map_type'     => config('statamic-google-maps.map_type', 'roadmap'),
                 ],

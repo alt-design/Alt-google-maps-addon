@@ -13,10 +13,10 @@ class GoogleMapsFieldtype extends Fieldtype
     public function defaultValue()
     {
         return [
-            'lat'     => null,
-            'lng'     => null,
+            'lat'     => $this->config('default_lat') ?? config('statamic-google-maps.defaults.lat'),
+            'lng'     => $this->config('default_lng') ?? config('statamic-google-maps.defaults.lng'),
             'address' => '',
-            'zoom'    => config('statamic-google-maps.defaults.zoom', 13),
+            'zoom'    => $this->config('default_zoom') ?? config('statamic-google-maps.defaults.zoom', 13),
         ];
     }
 
@@ -70,18 +70,24 @@ class GoogleMapsFieldtype extends Fieldtype
 
         $lat  = (float) $value['lat'];
         $lng  = (float) $value['lng'];
-        $zoom = (int) ($value['zoom'] ?? 13);
+        $zoom = (int) ($value['zoom'] ?? $this->config('default_zoom') ?? config('statamic-google-maps.defaults.zoom', 13));
         $key  = config('statamic-google-maps.api_key', '');
+
+        // Per-field config overrides the global site default (see README).
+        $provider   = $this->config('map_provider') ?: config('statamic-google-maps.map_provider', 'google');
+        $mapHeight  = (int) ($this->config('map_height') ?: config('statamic-google-maps.map_height', 420));
 
         return [
             'lat'             => $lat,
             'lng'             => $lng,
             'address'         => $value['address'] ?? '',
             'zoom'            => $zoom,
+            'map_provider'    => $provider,
+            'map_height'      => $mapHeight,
             'google_maps_url' => "https://www.google.com/maps/search/?api=1&query={$lat},{$lng}",
             'directions_url'  => "https://www.google.com/maps/dir/?api=1&destination={$lat},{$lng}",
             'static_map_url'  => $key
-                ? "https://maps.googleapis.com/maps/api/staticmap?center={$lat},{$lng}&zoom={$zoom}&size=600x300&markers=color:red%7C{$lat},{$lng}&key={$key}"
+                ? "https://maps.googleapis.com/maps/api/staticmap?center={$lat},{$lng}&zoom={$zoom}&size=600x300&markers=color:red%7C{$lat},{$lng}&key=" . urlencode($key)
                 : '',
         ];
     }
@@ -103,26 +109,25 @@ class GoogleMapsFieldtype extends Fieldtype
             ],
             'default_zoom' => [
                 'display'      => 'Default Zoom',
-                'instructions' => 'Nível de zoom inicial (1 = mundo, 20 = edifício).',
+                'instructions' => 'Leave blank to use the site default (Tools → Google Maps).',
                 'type'         => 'integer',
-                'default'      => 13,
                 'width'        => 33,
             ],
             'default_lat' => [
                 'display'      => 'Default Latitude',
-                'type'         => 'text',
-                'default'      => '-23.5505',
+                'instructions' => 'Leave blank to use the site default.',
+                'type'         => 'float',
                 'width'        => 33,
             ],
             'default_lng' => [
                 'display'      => 'Default Longitude',
-                'type'         => 'text',
-                'default'      => '-46.6333',
+                'instructions' => 'Leave blank to use the site default.',
+                'type'         => 'float',
                 'width'        => 33,
             ],
             'map_height' => [
                 'display'      => 'Map Height',
-                'instructions' => 'Altura do mapa em pixels.',
+                'instructions' => 'Map height in pixels.',
                 'type'         => 'integer',
                 'default'      => 420,
                 'width'        => 33,

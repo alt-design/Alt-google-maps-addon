@@ -33,9 +33,17 @@ class GeocodingController extends Controller
         ]);
 
         $data = $response->json();
+        $status = $data['status'] ?? 'UNKNOWN';
 
-        if (($data['status'] ?? '') !== 'OK' || empty($data['results'])) {
-            return response()->json(['success' => false, 'message' => 'No results found.']);
+        if ($status !== 'OK' || empty($data['results'])) {
+            $message = match ($status) {
+                'ZERO_RESULTS'                   => 'No results found.',
+                'REQUEST_DENIED'                 => 'Google Geocoding API request denied. Ensure the Geocoding API is enabled in Google Cloud Console and the API key is not restricted to browser requests only.',
+                'OVER_QUERY_LIMIT', 'OVER_DAILY_LIMIT' => 'Google Geocoding quota exceeded. Try again later, or switch to OpenStreetMap in Tools → Google Maps.',
+                'INVALID_REQUEST'                => 'Invalid address.',
+                default                          => "Geocoding failed ({$status}). Check your Google API key configuration.",
+            };
+            return response()->json(['success' => false, 'message' => $message]);
         }
 
         $result = $data['results'][0];
@@ -93,6 +101,14 @@ class GeocodingController extends Controller
                 'addressdetails' => 0,
             ]);
 
+        if ($response->status() === 429) {
+            return ['success' => false, 'message' => 'Too many requests to the geocoding service. Please wait a moment and try again.'];
+        }
+
+        if (! $response->successful()) {
+            return ['success' => false, 'message' => "Geocoding service error (HTTP {$response->status()}). Please try again."];
+        }
+
         $data = $response->json();
 
         if (empty($data)) {
@@ -119,6 +135,10 @@ class GeocodingController extends Controller
                 'lon'    => $lng,
                 'format' => 'json',
             ]);
+
+        if (! $response->successful()) {
+            return ['success' => false, 'message' => 'Reverse geocoding failed.'];
+        }
 
         $data = $response->json();
 
