@@ -96,6 +96,33 @@
             </div>
         </div>
 
+        <!-- Infobox inputs -->
+        <template v-if="hasLocation && !props.readOnly">
+            <div class="gmf-field">
+                <label class="text-2xs uppercase font-semibold text-gray-500">Infobox Title</label>
+                <input
+                    type="text"
+                    class="gmf-input"
+                    placeholder="Leave empty for no popup"
+                    :value="internalValue.infobox_title || ''"
+                    @input="update({ ...internalValue, infobox_title: $event.target.value })"
+                />
+            </div>
+            <div class="gmf-field">
+                <label class="text-2xs uppercase font-semibold text-gray-500">
+                    Infobox Content
+                    <span class="font-normal normal-case text-gray-400 ml-1">HTML supported</span>
+                </label>
+                <textarea
+                    class="gmf-input"
+                    placeholder="Leave empty for no popup"
+                    rows="3"
+                    :value="internalValue.infobox_content || ''"
+                    @input="update({ ...internalValue, infobox_content: $event.target.value })"
+                ></textarea>
+            </div>
+        </template>
+
         <!-- Footer: clear -->
         <div v-if="hasLocation && !props.readOnly" class="flex justify-end">
             <button type="button" class="gmf-clear-btn" @click.prevent="clearLocation">
@@ -158,6 +185,8 @@ const internalValue = ref(
             lng: defaultLng.value,
             address: '',
             zoom: defaultZoom.value,
+            infobox_title: '',
+            infobox_content: '',
         }
 );
 
@@ -497,7 +526,7 @@ function updateCoord(field, rawValue) {
 }
 
 function clearLocation() {
-    update({ lat: null, lng: null, address: '', zoom: defaultZoom.value });
+    update({ lat: null, lng: null, address: '', zoom: defaultZoom.value, infobox_title: '', infobox_content: '' });
     searchQuery.value = '';
     searchError.value = '';
 }

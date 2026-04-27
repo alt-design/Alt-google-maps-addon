@@ -37,10 +37,13 @@ class SettingsController extends Controller
         $values = $fields->process()->values();
 
         $data = [
-            'lat'          => $values->get('lat') !== null && $values->get('lat') !== '' ? (float) $values->get('lat') : null,
-            'lng'          => $values->get('lng') !== null && $values->get('lng') !== '' ? (float) $values->get('lng') : null,
-            'zoom'         => $values->get('zoom') !== null ? (int) $values->get('zoom') : 13,
-            'map_provider' => in_array($values->get('map_provider'), ['google', 'osm']) ? $values->get('map_provider') : 'google',
+            'lat'             => $values->get('lat') !== null && $values->get('lat') !== '' ? (float) $values->get('lat') : null,
+            'lng'             => $values->get('lng') !== null && $values->get('lng') !== '' ? (float) $values->get('lng') : null,
+            'zoom'            => $values->get('zoom') !== null ? (int) $values->get('zoom') : 13,
+            'map_provider'    => in_array($values->get('map_provider'), ['google', 'osm']) ? $values->get('map_provider') : 'google',
+            'infobox_title'   => trim((string) ($values->get('infobox_title') ?? '')),
+            'infobox_content' => trim((string) ($values->get('infobox_content') ?? '')),
+            'map_style'       => trim((string) ($values->get('map_style') ?? '')),
         ];
 
         $dir = dirname($this->storageFile);
@@ -70,10 +73,13 @@ class SettingsController extends Controller
         }
 
         return [
-            'lat'          => config('statamic-google-maps.defaults.lat'),
-            'lng'          => config('statamic-google-maps.defaults.lng'),
-            'zoom'         => config('statamic-google-maps.defaults.zoom', 13),
-            'map_provider' => config('statamic-google-maps.map_provider', 'google'),
+            'lat'             => config('statamic-google-maps.defaults.lat'),
+            'lng'             => config('statamic-google-maps.defaults.lng'),
+            'zoom'            => config('statamic-google-maps.defaults.zoom', 13),
+            'map_provider'    => config('statamic-google-maps.map_provider', 'google'),
+            'infobox_title'   => config('statamic-google-maps.infobox_title', ''),
+            'infobox_content' => config('statamic-google-maps.infobox_content', ''),
+            'map_style'       => config('statamic-google-maps.map_style', ''),
         ];
     }
 }

@@ -13,10 +13,12 @@ class GoogleMapsFieldtype extends Fieldtype
     public function defaultValue()
     {
         return [
-            'lat'     => $this->config('default_lat') ?? config('statamic-google-maps.defaults.lat'),
-            'lng'     => $this->config('default_lng') ?? config('statamic-google-maps.defaults.lng'),
-            'address' => '',
-            'zoom'    => $this->config('default_zoom') ?? config('statamic-google-maps.defaults.zoom', 13),
+            'lat'             => $this->config('default_lat') ?? config('statamic-google-maps.defaults.lat'),
+            'lng'             => $this->config('default_lng') ?? config('statamic-google-maps.defaults.lng'),
+            'address'         => '',
+            'zoom'            => $this->config('default_zoom') ?? config('statamic-google-maps.defaults.zoom', 13),
+            'infobox_title'   => $this->config('default_infobox_title') ?? config('statamic-google-maps.infobox_title', ''),
+            'infobox_content' => $this->config('default_infobox_content') ?? config('statamic-google-maps.infobox_content', ''),
         ];
     }
 
@@ -27,10 +29,12 @@ class GoogleMapsFieldtype extends Fieldtype
         }
 
         return [
-            'lat'     => isset($data['lat']) ? (float) $data['lat'] : null,
-            'lng'     => isset($data['lng']) ? (float) $data['lng'] : null,
-            'address' => $data['address'] ?? '',
-            'zoom'    => (int) ($data['zoom'] ?? 13),
+            'lat'             => isset($data['lat']) ? (float) $data['lat'] : null,
+            'lng'             => isset($data['lng']) ? (float) $data['lng'] : null,
+            'address'         => $data['address'] ?? '',
+            'zoom'            => (int) ($data['zoom'] ?? 13),
+            'infobox_title'   => (string) ($data['infobox_title'] ?? ''),
+            'infobox_content' => (string) ($data['infobox_content'] ?? ''),
         ];
     }
 
@@ -41,10 +45,12 @@ class GoogleMapsFieldtype extends Fieldtype
         }
 
         return [
-            'lat'     => round((float) $data['lat'], 7),
-            'lng'     => round((float) $data['lng'], 7),
-            'address' => trim($data['address'] ?? ''),
-            'zoom'    => (int) ($data['zoom'] ?? 13),
+            'lat'             => round((float) $data['lat'], 7),
+            'lng'             => round((float) $data['lng'], 7),
+            'address'         => trim($data['address'] ?? ''),
+            'zoom'            => (int) ($data['zoom'] ?? 13),
+            'infobox_title'   => trim((string) ($data['infobox_title'] ?? '')),
+            'infobox_content' => trim((string) ($data['infobox_content'] ?? '')),
         ];
     }
 
@@ -77,6 +83,14 @@ class GoogleMapsFieldtype extends Fieldtype
         $provider   = $this->config('map_provider') ?: config('statamic-google-maps.map_provider', 'google');
         $mapHeight  = (int) ($this->config('map_height') ?: config('statamic-google-maps.map_height', 420));
 
+        // Infobox: per-entry stored value → per-field config default → global config
+        // Use ?: (Elvis) not ?? so that empty strings also fall through to the next level.
+        $infoboxTitle   = ($value['infobox_title']   ?: null) ?: ($this->config('default_infobox_title')   ?: config('statamic-google-maps.infobox_title', ''));
+        $infoboxContent = ($value['infobox_content'] ?: null) ?: ($this->config('default_infobox_content') ?: config('statamic-google-maps.infobox_content', ''));
+
+        // Map style: per-field config → global config (no per-entry override — style is a fieldset concern)
+        $mapStyle = (string) ($this->config('map_style') ?: config('statamic-google-maps.map_style', ''));
+
         return [
             'lat'             => $lat,
             'lng'             => $lng,
@@ -84,6 +98,9 @@ class GoogleMapsFieldtype extends Fieldtype
             'zoom'            => $zoom,
             'map_provider'    => $provider,
             'map_height'      => $mapHeight,
+            'infobox_title'   => $infoboxTitle,
+            'infobox_content' => $infoboxContent,
+            'map_style'       => $mapStyle,
             'google_maps_url' => "https://www.google.com/maps/search/?api=1&query={$lat},{$lng}",
             'directions_url'  => "https://www.google.com/maps/dir/?api=1&destination={$lat},{$lng}",
             'static_map_url'  => $key
@@ -143,6 +160,24 @@ class GoogleMapsFieldtype extends Fieldtype
                 'type'         => 'toggle',
                 'default'      => true,
                 'width'        => 33,
+            ],
+            'default_infobox_title' => [
+                'display'      => 'Default Infobox Title',
+                'instructions' => 'Shown as the popup title when the marker is clicked. Overrides the global default (Tools → Google Maps) for this field only. Leave blank to inherit.',
+                'type'         => 'text',
+                'width'        => 100,
+            ],
+            'default_infobox_content' => [
+                'display'      => 'Default Infobox Content',
+                'instructions' => 'Shown below the title in the popup. HTML is supported. Overrides the global default for this field only. Leave blank to inherit.',
+                'type'         => 'textarea',
+                'width'        => 100,
+            ],
+            'map_style' => [
+                'display'      => 'Map Style JSON',
+                'instructions' => 'Paste style JSON from snazzymaps.com. Applied to Google Maps only. Overrides the global style for this field. Leave blank to inherit.',
+                'type'         => 'textarea',
+                'width'        => 100,
             ],
         ];
     }

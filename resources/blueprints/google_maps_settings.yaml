@@ -39,3 +39,28 @@ tabs:
               default: google
               clearable: false
               validate: "nullable|in:google,osm"
+      - display: Infobox
+        fields:
+          - handle: infobox_title
+            field:
+              type: text
+              display: Infobox Title
+              instructions: "Default title shown in the map popup when the marker is clicked. Leave blank for no infobox."
+              instructions_position: above
+              width: 100
+          - handle: infobox_content
+            field:
+              type: textarea
+              display: Infobox Content
+              instructions: "Shown below the title in the popup. HTML is supported. Leave blank for no infobox."
+              instructions_position: above
+              width: 100
+      - display: Map Style
+        fields:
+          - handle: map_style
+            field:
+              type: textarea
+              display: Map Style JSON
+              instructions: "Paste style JSON from snazzymaps.com. Applied to Google Maps only. Leave blank for the default style."
+              instructions_position: above
+              width: 100
