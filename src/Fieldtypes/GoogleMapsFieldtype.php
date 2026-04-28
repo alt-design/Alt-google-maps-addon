@@ -2,6 +2,9 @@
 
 namespace AltDesign\AltGoogleMapsAddon\Fieldtypes;
 
+use Statamic\Assets\AssetContainer;
+use Statamic\Facades\AssetContainer as AssetContainerFacade;
+use Statamic\Facades\User;
 use Statamic\Fields\Fieldtype;
 
 class GoogleMapsFieldtype extends Fieldtype
@@ -10,15 +13,47 @@ class GoogleMapsFieldtype extends Fieldtype
     protected $icon = 'pin';
     protected $categories = ['special'];
 
+    public function preload()
+    {
+        $user = User::current();
+
+        $containers = AssetContainerFacade::all()->map(function ($c) use ($user) {
+            return [
+                'id'                => $c->id(),
+                'handle'            => $c->handle(),
+                'title'             => $c->title(),
+                'edit_url'          => $c->editUrl(),
+                'delete_url'        => $c->deleteUrl(),
+                'blueprint_url'     => cp_route('blueprints.asset-containers.edit', $c->handle()),
+                'can_view'          => $user ? $user->can('view', $c) : false,
+                'can_edit'          => $user ? $user->can('edit', $c) : false,
+                'can_delete'        => $user ? $user->can('delete', $c) : false,
+                'can_upload'        => $user ? $user->can('store', [\Statamic\Contracts\Assets\Asset::class, $c]) : false,
+                'can_create_folders'=> $user ? $user->can('create', [\Statamic\Contracts\Assets\AssetFolder::class, $c]) : false,
+                'sort_field'        => $c->sortField(),
+                'sort_direction'    => $c->sortDirection(),
+            ];
+        })->values()->all();
+
+        return [
+            'containers' => $containers,
+            'columns'    => [],
+        ];
+    }
+
     public function defaultValue()
     {
         return [
-            'lat'             => $this->config('default_lat') ?? config('statamic-google-maps.defaults.lat'),
-            'lng'             => $this->config('default_lng') ?? config('statamic-google-maps.defaults.lng'),
-            'address'         => '',
-            'zoom'            => $this->config('default_zoom') ?? config('statamic-google-maps.defaults.zoom', 13),
-            'infobox_title'   => $this->config('default_infobox_title') ?? config('statamic-google-maps.infobox_title', ''),
-            'infobox_content' => $this->config('default_infobox_content') ?? config('statamic-google-maps.infobox_content', ''),
+            'lat'               => $this->config('default_lat') ?? config('statamic-google-maps.defaults.lat'),
+            'lng'               => $this->config('default_lng') ?? config('statamic-google-maps.defaults.lng'),
+            'address'           => '',
+            'zoom'              => $this->config('default_zoom') ?? config('statamic-google-maps.defaults.zoom', 13),
+            'infobox_title'     => $this->config('default_infobox_title') ?? config('statamic-google-maps.infobox_title', ''),
+            'infobox_content'   => $this->config('default_infobox_content') ?? config('statamic-google-maps.infobox_content', ''),
+            'marker_icon_url'   => '',
+            'marker_icon_width' => 0,
+            'marker_icon_height'=> 0,
+            'marker_asset_id'   => '',
         ];
     }
 
@@ -29,12 +64,16 @@ class GoogleMapsFieldtype extends Fieldtype
         }
 
         return [
-            'lat'             => isset($data['lat']) ? (float) $data['lat'] : null,
-            'lng'             => isset($data['lng']) ? (float) $data['lng'] : null,
-            'address'         => $data['address'] ?? '',
-            'zoom'            => (int) ($data['zoom'] ?? 13),
-            'infobox_title'   => (string) ($data['infobox_title'] ?? ''),
-            'infobox_content' => (string) ($data['infobox_content'] ?? ''),
+            'lat'               => isset($data['lat']) ? (float) $data['lat'] : null,
+            'lng'               => isset($data['lng']) ? (float) $data['lng'] : null,
+            'address'           => $data['address'] ?? '',
+            'zoom'              => (int) ($data['zoom'] ?? 13),
+            'infobox_title'     => (string) ($data['infobox_title'] ?? ''),
+            'infobox_content'   => (string) ($data['infobox_content'] ?? ''),
+            'marker_icon_url'   => (string) ($data['marker_icon_url'] ?? ''),
+            'marker_icon_width' => (int) ($data['marker_icon_width'] ?? 0),
+            'marker_icon_height'=> (int) ($data['marker_icon_height'] ?? 0),
+            'marker_asset_id'   => (string) ($data['marker_asset_id'] ?? ''),
         ];
     }
 
@@ -45,12 +84,16 @@ class GoogleMapsFieldtype extends Fieldtype
         }
 
         return [
-            'lat'             => round((float) $data['lat'], 7),
-            'lng'             => round((float) $data['lng'], 7),
-            'address'         => trim($data['address'] ?? ''),
-            'zoom'            => (int) ($data['zoom'] ?? 13),
-            'infobox_title'   => trim((string) ($data['infobox_title'] ?? '')),
-            'infobox_content' => trim((string) ($data['infobox_content'] ?? '')),
+            'lat'               => round((float) $data['lat'], 7),
+            'lng'               => round((float) $data['lng'], 7),
+            'address'           => trim($data['address'] ?? ''),
+            'zoom'              => (int) ($data['zoom'] ?? 13),
+            'infobox_title'     => trim((string) ($data['infobox_title'] ?? '')),
+            'infobox_content'   => trim((string) ($data['infobox_content'] ?? '')),
+            'marker_icon_url'   => trim((string) ($data['marker_icon_url'] ?? '')),
+            'marker_icon_width' => (int) ($data['marker_icon_width'] ?? 0),
+            'marker_icon_height'=> (int) ($data['marker_icon_height'] ?? 0),
+            'marker_asset_id'   => trim((string) ($data['marker_asset_id'] ?? '')),
         ];
     }
 
@@ -84,23 +127,36 @@ class GoogleMapsFieldtype extends Fieldtype
         $mapHeight  = (int) ($this->config('map_height') ?: config('statamic-google-maps.map_height', 420));
 
         // Infobox: per-entry stored value → per-field config default → global config
-        // Use ?: (Elvis) not ?? so that empty strings also fall through to the next level.
-        $infoboxTitle   = ($value['infobox_title']   ?: null) ?: ($this->config('default_infobox_title')   ?: config('statamic-google-maps.infobox_title', ''));
-        $infoboxContent = ($value['infobox_content'] ?: null) ?: ($this->config('default_infobox_content') ?: config('statamic-google-maps.infobox_content', ''));
+        // ($value key may be absent on old entries — use ?? '' before ?: chain)
+        $infoboxTitle   = ($value['infobox_title']   ?? '') ?: ($this->config('default_infobox_title')   ?: config('statamic-google-maps.infobox_title', ''));
+        $infoboxContent = ($value['infobox_content'] ?? '') ?: ($this->config('default_infobox_content') ?: config('statamic-google-maps.infobox_content', ''));
 
         // Map style: per-field config → global config (no per-entry override — style is a fieldset concern)
         $mapStyle = (string) ($this->config('map_style') ?: config('statamic-google-maps.map_style', ''));
 
+        // Marker icon: per-entry stored value → per-field config → global config
+        $entryIconUrl    = $value['marker_icon_url']    ?? '';
+        $entryIconWidth  = $value['marker_icon_width']  ?? 0;
+        $entryIconHeight = $value['marker_icon_height'] ?? 0;
+        $markerIconUrl    = (string) ($entryIconUrl  ?: ($this->config('marker_icon_url')   ?: config('statamic-google-maps.marker_icon_url', '')));
+        $markerIconWidth  = (int)    ($entryIconWidth  > 0 ? $entryIconWidth  : ($this->config('marker_icon_width')   ?: config('statamic-google-maps.marker_icon_width', 40)));
+        $markerIconHeight = (int)    ($entryIconHeight > 0 ? $entryIconHeight : ($this->config('marker_icon_height')  ?: config('statamic-google-maps.marker_icon_height', 40)));
+        $markerIcon = $markerIconUrl
+            ? ['url' => $markerIconUrl, 'width' => $markerIconWidth, 'height' => $markerIconHeight]
+            : null;
+
         return [
-            'lat'             => $lat,
-            'lng'             => $lng,
-            'address'         => $value['address'] ?? '',
-            'zoom'            => $zoom,
-            'map_provider'    => $provider,
-            'map_height'      => $mapHeight,
-            'infobox_title'   => $infoboxTitle,
-            'infobox_content' => $infoboxContent,
-            'map_style'       => $mapStyle,
+            'lat'              => $lat,
+            'lng'              => $lng,
+            'address'          => $value['address'] ?? '',
+            'zoom'             => $zoom,
+            'map_provider'     => $provider,
+            'map_height'       => $mapHeight,
+            'infobox_title'    => $infoboxTitle,
+            'infobox_content'  => $infoboxContent,
+            'map_style'        => $mapStyle,
+            'marker_icon'      => $markerIcon,
+            'marker_icon_json' => $markerIcon ? json_encode($markerIcon) : '',
             'google_maps_url' => "https://www.google.com/maps/search/?api=1&query={$lat},{$lng}",
             'directions_url'  => "https://www.google.com/maps/dir/?api=1&destination={$lat},{$lng}",
             'static_map_url'  => $key
@@ -149,18 +205,6 @@ class GoogleMapsFieldtype extends Fieldtype
                 'default'      => 420,
                 'width'        => 33,
             ],
-            'enable_search' => [
-                'display'      => 'Enable Search',
-                'type'         => 'toggle',
-                'default'      => true,
-                'width'        => 33,
-            ],
-            'enable_click' => [
-                'display'      => 'Enable Click to Place',
-                'type'         => 'toggle',
-                'default'      => true,
-                'width'        => 33,
-            ],
             'default_infobox_title' => [
                 'display'      => 'Default Infobox Title',
                 'instructions' => 'Shown as the popup title when the marker is clicked. Overrides the global default (Tools → Google Maps) for this field only. Leave blank to inherit.',
@@ -178,6 +222,26 @@ class GoogleMapsFieldtype extends Fieldtype
                 'instructions' => 'Paste style JSON from snazzymaps.com. Applied to Google Maps only. Overrides the global style for this field. Leave blank to inherit.',
                 'type'         => 'textarea',
                 'width'        => 100,
+            ],
+            'marker_icon_url' => [
+                'display'      => 'Custom Marker Icon URL',
+                'instructions' => 'URL to a custom marker image (PNG or SVG). Overrides the global icon for this field. Leave blank to inherit.',
+                'type'         => 'text',
+                'width'        => 100,
+            ],
+            'marker_icon_width' => [
+                'display'      => 'Icon Width (px)',
+                'instructions' => 'Width of the custom marker in pixels.',
+                'type'         => 'integer',
+                'default'      => 40,
+                'width'        => 50,
+            ],
+            'marker_icon_height' => [
+                'display'      => 'Icon Height (px)',
+                'instructions' => 'Height of the custom marker in pixels.',
+                'type'         => 'integer',
+                'default'      => 40,
+                'width'        => 50,
             ],
         ];
     }

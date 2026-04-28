@@ -76,9 +76,15 @@ class ServiceProvider extends AddonServiceProvider
             }
         }
 
-        foreach (['infobox_title', 'infobox_content', 'map_style'] as $key) {
+        foreach (['infobox_title', 'infobox_content', 'map_style', 'marker_icon_url'] as $key) {
             if (array_key_exists($key, $stored)) {
                 config(["statamic-google-maps.{$key}" => $stored[$key]]);
+            }
+        }
+
+        foreach (['marker_icon_width', 'marker_icon_height'] as $key) {
+            if (array_key_exists($key, $stored) && $stored[$key] !== null) {
+                config(["statamic-google-maps.{$key}" => (int) $stored[$key]]);
             }
         }
 
@@ -90,9 +96,12 @@ class ServiceProvider extends AddonServiceProvider
                     'defaults'        => config('statamic-google-maps.defaults'),
                     'map_height'      => config('statamic-google-maps.map_height', 420),
                     'map_type'        => config('statamic-google-maps.map_type', 'roadmap'),
-                    'infobox_title'   => config('statamic-google-maps.infobox_title', ''),
-                    'infobox_content' => config('statamic-google-maps.infobox_content', ''),
-                    'map_style'       => config('statamic-google-maps.map_style', ''),
+                    'infobox_title'      => config('statamic-google-maps.infobox_title', ''),
+                    'infobox_content'    => config('statamic-google-maps.infobox_content', ''),
+                    'map_style'          => config('statamic-google-maps.map_style', ''),
+                    'marker_icon_url'    => config('statamic-google-maps.marker_icon_url', ''),
+                    'marker_icon_width'  => config('statamic-google-maps.marker_icon_width', 40),
+                    'marker_icon_height' => config('statamic-google-maps.marker_icon_height', 40),
                 ],
             ]);
         }

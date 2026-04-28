@@ -64,3 +64,28 @@ tabs:
               instructions: "Paste style JSON from snazzymaps.com. Applied to Google Maps only. Leave blank for the default style."
               instructions_position: above
               width: 100
+      - display: Marker
+        fields:
+          - handle: marker_icon_url
+            field:
+              type: text
+              display: Custom Marker Icon URL
+              instructions: "URL to a custom marker image (PNG or SVG). Leave blank to use the default pin."
+              instructions_position: above
+              width: 100
+          - handle: marker_icon_width
+            field:
+              type: integer
+              display: Icon Width (px)
+              default: 40
+              instructions: "Width of the custom marker icon in pixels."
+              instructions_position: above
+              width: 50
+          - handle: marker_icon_height
+            field:
+              type: integer
+              display: Icon Height (px)
+              default: 40
+              instructions: "Height of the custom marker icon in pixels."
+              instructions_position: above
+              width: 50

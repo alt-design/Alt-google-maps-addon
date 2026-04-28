@@ -41,9 +41,12 @@ class SettingsController extends Controller
             'lng'             => $values->get('lng') !== null && $values->get('lng') !== '' ? (float) $values->get('lng') : null,
             'zoom'            => $values->get('zoom') !== null ? (int) $values->get('zoom') : 13,
             'map_provider'    => in_array($values->get('map_provider'), ['google', 'osm']) ? $values->get('map_provider') : 'google',
-            'infobox_title'   => trim((string) ($values->get('infobox_title') ?? '')),
-            'infobox_content' => trim((string) ($values->get('infobox_content') ?? '')),
-            'map_style'       => trim((string) ($values->get('map_style') ?? '')),
+            'infobox_title'      => trim((string) ($values->get('infobox_title') ?? '')),
+            'infobox_content'    => trim((string) ($values->get('infobox_content') ?? '')),
+            'map_style'          => trim((string) ($values->get('map_style') ?? '')),
+            'marker_icon_url'    => trim((string) ($values->get('marker_icon_url') ?? '')),
+            'marker_icon_width'  => $values->get('marker_icon_width') !== null ? (int) $values->get('marker_icon_width') : 32,
+            'marker_icon_height' => $values->get('marker_icon_height') !== null ? (int) $values->get('marker_icon_height') : 40,
         ];
 
         $dir = dirname($this->storageFile);
@@ -51,7 +54,9 @@ class SettingsController extends Controller
             mkdir($dir, 0755, true);
         }
 
-        file_put_contents($this->storageFile, json_encode($data));
+        if (file_put_contents($this->storageFile, json_encode($data), LOCK_EX) === false) {
+            throw new \RuntimeException('Failed to save Google Maps settings. Check that storage/app/statamic/ is writable.');
+        }
 
         return true;
     }
@@ -77,9 +82,12 @@ class SettingsController extends Controller
             'lng'             => config('statamic-google-maps.defaults.lng'),
             'zoom'            => config('statamic-google-maps.defaults.zoom', 13),
             'map_provider'    => config('statamic-google-maps.map_provider', 'google'),
-            'infobox_title'   => config('statamic-google-maps.infobox_title', ''),
-            'infobox_content' => config('statamic-google-maps.infobox_content', ''),
-            'map_style'       => config('statamic-google-maps.map_style', ''),
+            'infobox_title'      => config('statamic-google-maps.infobox_title', ''),
+            'infobox_content'    => config('statamic-google-maps.infobox_content', ''),
+            'map_style'          => config('statamic-google-maps.map_style', ''),
+            'marker_icon_url'    => config('statamic-google-maps.marker_icon_url', ''),
+            'marker_icon_width'  => config('statamic-google-maps.marker_icon_width', 40),
+            'marker_icon_height' => config('statamic-google-maps.marker_icon_height', 40),
         ];
     }
 }

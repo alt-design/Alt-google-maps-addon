@@ -121,6 +121,46 @@
                     @input="update({ ...internalValue, infobox_content: $event.target.value })"
                 ></textarea>
             </div>
+            <div class="gmf-field">
+                <label class="text-2xs uppercase font-semibold text-gray-500">
+                    Marker Icon
+                    <span class="font-normal normal-case text-gray-400 ml-1">Leave empty to use the field / global default</span>
+                </label>
+                <assets-fieldtype
+                    v-if="markerAssetMeta.container"
+                    :value="markerAssetIds"
+                    :config="markerAssetConfig"
+                    :meta="markerAssetMeta"
+                    handle="marker_icon"
+                    @input="onMarkerAssetUpdate"
+                    @update:value="onMarkerAssetUpdate"
+                />
+                <p v-else class="text-xs text-gray-400 italic mt-1">No asset containers configured.</p>
+            </div>
+            <div v-if="internalValue.marker_icon_url" class="grid grid-cols-2 gap-2">
+                <div class="gmf-field">
+                    <label class="text-2xs uppercase font-semibold text-gray-500">Icon Width (px)</label>
+                    <input
+                        type="number"
+                        min="1"
+                        class="gmf-input"
+                        placeholder="40"
+                        :value="internalValue.marker_icon_width || ''"
+                        @change="update({ ...internalValue, marker_icon_width: parseInt($event.target.value) || 0 })"
+                    />
+                </div>
+                <div class="gmf-field">
+                    <label class="text-2xs uppercase font-semibold text-gray-500">Icon Height (px)</label>
+                    <input
+                        type="number"
+                        min="1"
+                        class="gmf-input"
+                        placeholder="40"
+                        :value="internalValue.marker_icon_height || ''"
+                        @change="update({ ...internalValue, marker_icon_height: parseInt($event.target.value) || 0 })"
+                    />
+                </div>
+            </div>
         </template>
 
         <!-- Footer: clear -->
@@ -164,7 +204,7 @@ const globalConfig = computed(() => Statamic.$config.get('googleMaps') || {});
 const mapProvider = computed(() =>
     props.config.map_provider || globalConfig.value.map_provider || 'google'
 );
-const mapHeight = computed(() => globalConfig.value.map_height || 420);
+const mapHeight = computed(() => props.config.map_height || globalConfig.value.map_height || 420);
 
 const defaultZoom = computed(() =>
     parseInt(props.config.default_zoom) || globalConfig.value.defaults?.zoom || 13
@@ -187,6 +227,10 @@ const internalValue = ref(
             zoom: defaultZoom.value,
             infobox_title: '',
             infobox_content: '',
+            marker_icon_url: '',
+            marker_icon_width: 0,
+            marker_icon_height: 0,
+            marker_asset_id: '',
         }
 );
 
@@ -206,6 +250,45 @@ const mapEl = ref(null);
 let mapInstance = null;
 let markerInstance = null;
 const mapReady = ref(false);
+
+// ─── Asset picker (Marker Icon) ───────────────────────────────────────────────
+
+const markerAssetIds = ref(
+    internalValue.value.marker_asset_id ? [internalValue.value.marker_asset_id] : []
+);
+
+const markerAssetMeta = computed(() => ({
+    container: props.meta?.containers?.[0] ?? null,
+    data: null,
+    columns: props.meta?.columns ?? [],
+    dynamicFolder: null,
+    rename_folder: null,
+}));
+
+const markerAssetConfig = {
+    allow_uploads: true,
+    max_files: 1,
+    mode: 'list',
+    show_filename: true,
+    show_set_alt: false,
+    folder: '/',
+};
+
+async function onMarkerAssetUpdate(ids) {
+    markerAssetIds.value = ids ?? [];
+    if (!ids?.length) {
+        update({ ...internalValue.value, marker_icon_url: '', marker_asset_id: '' });
+        return;
+    }
+    try {
+        const assets = await postCp('assets-fieldtype', { assets: ids });
+        if (assets?.[0]?.url) {
+            update({ ...internalValue.value, marker_icon_url: assets[0].url, marker_asset_id: ids[0] });
+        }
+    } catch (e) {
+        console.error('[GoogleMapsFieldtype] Asset resolve failed:', e);
+    }
+}
 
 // ─── Map initialisation ───────────────────────────────────────────────────────
 
@@ -517,6 +600,10 @@ async function postCp(path, body) {
     return resp.json();
 }
 
+// ─── Asset picker ─────────────────────────────────────────────────────────────
+
+// (handled by onMarkerAssetUpdate above)
+
 // ─── Coordinate inputs ────────────────────────────────────────────────────────
 
 function updateCoord(field, rawValue) {
@@ -526,7 +613,13 @@ function updateCoord(field, rawValue) {
 }
 
 function clearLocation() {
-    update({ lat: null, lng: null, address: '', zoom: defaultZoom.value, infobox_title: '', infobox_content: '' });
+    update({
+        lat: null, lng: null, address: '', zoom: defaultZoom.value,
+        infobox_title: '', infobox_content: '',
+        marker_icon_url: '', marker_icon_width: 0, marker_icon_height: 0,
+        marker_asset_id: '',
+    });
+    markerAssetIds.value = [];
     searchQuery.value = '';
     searchError.value = '';
 }

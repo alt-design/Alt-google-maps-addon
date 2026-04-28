@@ -23,4 +23,10 @@ return [
     // Map style JSON from snazzymaps.com (Google Maps only). Leave blank for the default style.
     // Can be overridden per-fieldset via the field config.
     'map_style' => '',
+
+    // Custom marker icon. Leave blank to use the provider's default pin.
+    // Can be overridden per-fieldset via the field config.
+    'marker_icon_url'    => env('GOOGLE_MAPS_MARKER_ICON', ''),
+    'marker_icon_width'  => (int) env('GOOGLE_MAPS_MARKER_WIDTH', 40),
+    'marker_icon_height' => (int) env('GOOGLE_MAPS_MARKER_HEIGHT', 40),
 ];

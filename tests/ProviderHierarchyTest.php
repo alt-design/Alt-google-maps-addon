@@ -135,7 +135,10 @@ class ProviderHierarchyTest extends TestCase
             'default_zoom' => 12,
         ]));
 
-        $this->assertSame(['lat' => -23.5, 'lng' => -46.6, 'address' => '', 'zoom' => 12], $ft->defaultValue());
+        $defaults = $ft->defaultValue();
+        $this->assertSame(-23.5, $defaults['lat']);
+        $this->assertSame(-46.6, $defaults['lng']);
+        $this->assertSame(12, $defaults['zoom']);
     }
 
     public function test_default_value_falls_back_to_global_defaults(): void
@@ -147,7 +150,10 @@ class ProviderHierarchyTest extends TestCase
         ]);
 
         $ft = new GoogleMapsFieldtype;
-        $this->assertSame(['lat' => 10.0, 'lng' => 20.0, 'address' => '', 'zoom' => 7], $ft->defaultValue());
+        $defaults = $ft->defaultValue();
+        $this->assertSame(10.0, $defaults['lat']);
+        $this->assertSame(20.0, $defaults['lng']);
+        $this->assertSame(7, $defaults['zoom']);
     }
 
     public function test_static_map_url_urlencodes_api_key(): void
@@ -156,6 +162,29 @@ class ProviderHierarchyTest extends TestCase
         $ft = new GoogleMapsFieldtype;
         $out = $ft->augment(['lat' => 1, 'lng' => 2, 'zoom' => 10]);
         $this->assertStringContainsString('key=abc%26def%3Dxyz', $out['static_map_url']);
+    }
+
+    public function test_augment_marker_icon_returns_array_when_url_set(): void
+    {
+        config([
+            'statamic-google-maps.marker_icon_url'    => 'https://example.com/pin.png',
+            'statamic-google-maps.marker_icon_width'  => 32,
+            'statamic-google-maps.marker_icon_height' => 40,
+        ]);
+        $ft = new GoogleMapsFieldtype;
+        $out = $ft->augment(['lat' => 1, 'lng' => 2, 'zoom' => 10]);
+        $this->assertIsArray($out['marker_icon']);
+        $this->assertSame('https://example.com/pin.png', $out['marker_icon']['url']);
+        $this->assertSame(32, $out['marker_icon']['width']);
+        $this->assertSame(40, $out['marker_icon']['height']);
+    }
+
+    public function test_augment_marker_icon_is_null_when_no_url(): void
+    {
+        config(['statamic-google-maps.marker_icon_url' => '']);
+        $ft = new GoogleMapsFieldtype;
+        $out = $ft->augment(['lat' => 1, 'lng' => 2, 'zoom' => 10]);
+        $this->assertNull($out['marker_icon']);
     }
 
     public function test_tag_param_provider_overrides_config(): void

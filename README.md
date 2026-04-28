@@ -8,7 +8,8 @@ A location picker fieldtype for [Statamic CMS](https://statamic.com) with suppor
 - **Dual map provider** — choose **Google Maps** (requires API key) or **OpenStreetMap / Leaflet** (no API key needed)
 - **Infobox / popup** — configurable marker popup (title + HTML body); opens on marker click; powered by [Snazzy Info Window](https://snazzymaps.com/about/info-window) (Google) and Leaflet's native `bindPopup` (OSM)
 - **Map styles** — apply custom map styles from [snazzymaps.com](https://snazzymaps.com) (Google Maps only); paste the style JSON in the CP or per-fieldset
-- **CP Settings page** — configure default coordinates, map provider, infobox defaults, and map style via Tools → Alt Google Maps
+- **Custom marker icon** — replace the default pin with any PNG/SVG image; override per-entry (with built-in asset browser picker), per-field, via CP Settings, or via `.env`
+- **CP Settings page** — configure default coordinates, map provider, infobox defaults, map style, and marker icon via Tools → Alt Google Maps
 - **Augmented data** — automatically generates `google_maps_url`, `directions_url`, and `static_map_url` for use in Antlers templates
 - **Adapter pattern** — frontend rendering uses a shared `window.AltMap` adapter; Leaflet, Google Maps SDK, and Snazzy Info Window are all lazy-loaded from CDN only when needed
 - **`.env` configuration** — API key, map provider, and defaults via environment variables
@@ -57,6 +58,11 @@ GOOGLE_MAPS_PROVIDER=google
 GOOGLE_MAPS_DEFAULT_LAT=51.5074
 GOOGLE_MAPS_DEFAULT_LNG=-0.1278
 GOOGLE_MAPS_DEFAULT_ZOOM=13
+
+# Optional: custom marker icon (leave blank to use the provider default pin)
+GOOGLE_MAPS_MARKER_ICON=https://example.com/pin.png
+GOOGLE_MAPS_MARKER_WIDTH=40
+GOOGLE_MAPS_MARKER_HEIGHT=40
 ```
 
 You can also configure these settings via the CP under **Tools → Alt Google Maps**. Values saved there take priority over `.env` — to reset, delete `storage/app/statamic/google-maps-settings.json`.
@@ -74,9 +80,12 @@ After publishing, `config/statamic-google-maps.php` exposes additional options:
 | `defaults.zoom`   | `13`        | Default zoom level                                                                       |
 | `map_height`      | `420`       | Map height in pixels (CP fieldtype default)                                              |
 | `map_type`        | `'roadmap'` | Google Maps type: `'roadmap'`, `'satellite'`, `'terrain'`, `'hybrid'`                    |
-| `infobox_title`   | `''`        | Default popup title (reads `GOOGLE_MAPS_INFOBOX_TITLE`); overridden by CP Settings       |
-| `infobox_content` | `''`        | Default popup body HTML (reads `GOOGLE_MAPS_INFOBOX_CONTENT`); overridden by CP Settings |
-| `map_style`       | `''`        | Snazzy Maps style JSON for Google Maps; overridden by CP Settings                        |
+| `infobox_title`      | `''`        | Default popup title (reads `GOOGLE_MAPS_INFOBOX_TITLE`); overridden by CP Settings          |
+| `infobox_content`    | `''`        | Default popup body HTML (reads `GOOGLE_MAPS_INFOBOX_CONTENT`); overridden by CP Settings    |
+| `map_style`          | `''`        | Snazzy Maps style JSON for Google Maps; overridden by CP Settings                           |
+| `marker_icon_url`    | `''`        | URL to a custom marker image (PNG/SVG, reads `GOOGLE_MAPS_MARKER_ICON`); empty = default pin |
+| `marker_icon_width`  | `40`        | Marker icon width in pixels (reads `GOOGLE_MAPS_MARKER_WIDTH`)                              |
+| `marker_icon_height` | `40`        | Marker icon height in pixels (reads `GOOGLE_MAPS_MARKER_HEIGHT`)                            |
 
 ## Override Hierarchy
 
@@ -152,11 +161,12 @@ All field-level config options are optional and override the global defaults for
 | `default_lng`             | float    | _(site default)_ | Starting longitude for new entries — blank to inherit from site default      |
 | `default_zoom`            | integer  | _(site default)_ | Initial zoom level (1 = world, 20 = building) — blank = site default         |
 | `map_height`              | integer  | `420`            | Map height in pixels                                                         |
-| `enable_search`           | toggle   | `true`           | Show/hide the address search bar                                             |
-| `enable_click`            | toggle   | `true`           | Enable click-to-place on the map                                             |
-| `default_infobox_title`   | text     | _(site default)_ | Popup title for all entries using this field — overrides CP/config default   |
-| `default_infobox_content` | textarea | _(site default)_ | Popup body HTML — overrides CP/config default for this field only            |
-| `map_style`               | textarea | _(site default)_ | Snazzy Maps style JSON (Google only) — overrides global style for this field |
+| `default_infobox_title`   | text     | _(site default)_ | Popup title for all entries using this field — overrides CP/config default    |
+| `default_infobox_content` | textarea | _(site default)_ | Popup body HTML — overrides CP/config default for this field only             |
+| `map_style`               | textarea | _(site default)_ | Snazzy Maps style JSON (Google only) — overrides global style for this field  |
+| `marker_icon_url`         | text     | _(site default)_ | Custom marker image URL — overrides CP/config default for this field only     |
+| `marker_icon_width`       | integer  | `40`             | Marker icon width in pixels                                                   |
+| `marker_icon_height`      | integer  | `40`             | Marker icon height in pixels                                                  |
 
 Example with custom options:
 
@@ -170,8 +180,6 @@ Example with custom options:
       default_lng: -46.6333
       default_zoom: 12
       map_height: 300
-      enable_search: true
-      enable_click: true
 ```
 
 ### Frontend Adapter (`window.AltMap`)
@@ -300,20 +308,22 @@ form_row:
 
 ### Available variables
 
-| Variable          | Type   | Description                                                                        |
-| ----------------- | ------ | ---------------------------------------------------------------------------------- |
-| `lat`             | float  | Latitude                                                                           |
-| `lng`             | float  | Longitude                                                                          |
-| `zoom`            | int    | Zoom level (1–21)                                                                  |
-| `address`         | string | Address string (if set via search, click, or drag)                                 |
-| `map_provider`    | string | Resolved provider for this field: `'google'` or `'osm'` (per-field → site default) |
-| `map_height`      | int    | Resolved map height in pixels (per-field → site default)                           |
-| `infobox_title`   | string | Resolved popup title (per-entry → per-field → site default)                        |
-| `infobox_content` | string | Resolved popup body HTML (per-entry → per-field → site default)                    |
-| `map_style`       | string | Resolved Snazzy Maps style JSON (per-field → site default; Google only)            |
-| `google_maps_url` | string | Link to Google Maps at this location                                               |
-| `directions_url`  | string | Link to Google Maps directions to this location                                    |
-| `static_map_url`  | string | Static map image URL (Google provider only; requires API key)                      |
+| Variable          | Type   | Description                                                                                                                                      |
+| ----------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lat`             | float  | Latitude                                                                                                                                         |
+| `lng`             | float  | Longitude                                                                                                                                        |
+| `zoom`            | int    | Zoom level (1–21)                                                                                                                                |
+| `address`         | string | Address string (if set via search, click, or drag)                                                                                               |
+| `map_provider`    | string | Resolved provider for this field: `'google'` or `'osm'` (per-field → site default)                                                              |
+| `map_height`      | int    | Resolved map height in pixels (per-field → site default)                                                                                         |
+| `infobox_title`   | string | Resolved popup title (per-entry → per-field → site default)                                                                                      |
+| `infobox_content` | string | Resolved popup body HTML (per-entry → per-field → site default)                                                                                  |
+| `map_style`       | string | Resolved Snazzy Maps style JSON (per-field → site default; Google only)                                                                          |
+| `marker_icon`      | array\|null | Resolved marker icon as `{ url, width, height }`, or `null` if not set. Access as `{{ marker_icon:url }}`, `{{ marker_icon:width }}`, `{{ marker_icon:height }}`. |
+| `marker_icon_json` | string      | Same as `marker_icon` but pre-encoded as a JSON string — use in `data-marker` HTML attributes with `\| entities`. Empty string when no icon is set. |
+| `google_maps_url` | string | Link to Google Maps at this location                                                                                                             |
+| `directions_url`  | string | Link to Google Maps directions to this location                                                                                                  |
+| `static_map_url`  | string | Static map image URL (Google provider only; requires API key)                                                                                    |
 
 ## Infobox / Popup
 
@@ -378,6 +388,72 @@ If your HTML includes a close button, give it the class `popup-close` and the ad
 > **Note:** This automatic wiring only applies to the **Google Maps** provider. For Leaflet, the native popup already has its own close button provided by the library.
 
 > **Note:** Any `<style>` blocks inside the Infobox Content are also supported — they will be injected into the page alongside the popup HTML.
+
+## Custom Marker Icon
+
+You can replace the default provider pin with any PNG or SVG image. The icon URL, width (px), and height (px) are resolved through a **4-level hierarchy** — the same pattern as the infobox:
+
+| Priority    | Source                   | How                                                                                   |
+| ----------- | ------------------------ | ------------------------------------------------------------------------------------- |
+| 1 — highest | Per-entry (stored value) | Editor pastes a URL or uses the **Browse assets** button in the CP fieldtype          |
+| 2           | Per-field config         | `marker_icon_url` / `marker_icon_width` / `marker_icon_height` on the blueprint field |
+| 3           | CP Settings page         | **Tools → Alt Google Maps** → Marker section                                          |
+| 4 — lowest  | Config / `.env`          | `marker_icon_url/width/height` in `config/statamic-google-maps.php` / `.env`          |
+
+Leaving any level empty means "inherit from the next level down". If the resolved URL is empty after all fallbacks, the provider's default pin is used.
+
+### Asset browser picker
+
+The Marker Icon field in the CP uses Statamic's native **Assets fieldtype** component — the same UI used by all other asset fields in the CP. This means the editor gets:
+
+- A **Browse Assets** button that opens the full asset selector modal
+- **Drag & drop** file upload directly onto the field
+- A **choose a file** link to open the OS file picker
+- A list row showing the selected image with filename, filesize, and a remove button
+
+When an asset is selected or uploaded, the field automatically resolves its public URL and stores it (alongside the asset ID for future reference). The width/height inputs appear below once an icon URL is set.
+
+### `marker_icon` and `marker_icon_json` augmented variables
+
+After augmentation, two variables are available:
+
+| Variable | Type | Value |
+|---|---|---|
+| `marker_icon` | array\|null | `{ url, width, height }` or `null` if not set |
+| `marker_icon_json` | string | Pre-encoded JSON string — or `''` if not set |
+
+Use `marker_icon` for direct property access in Antlers:
+
+```antlers
+{{ if marker_icon }}
+    <img src="{{ marker_icon:url }}" width="{{ marker_icon:width }}" height="{{ marker_icon:height }}">
+{{ /if }}
+```
+
+Use `marker_icon_json` for `data-marker` HTML attributes — it is already JSON-encoded so only needs `| entities` to HTML-escape the quotes:
+
+```antlers
+{{# Standalone field #}}
+<div id="map-{{ lat }}-{{ lng }}"
+     data-marker="{{ marker_icon_json | entities }}"
+     style="height: {{ map_height }}px; width: 100%;">
+</div>
+
+{{# Inside a Replicator / Bard set #}}
+<div id="gmap-{{ id }}"
+     data-marker="{{ google_maps_field:marker_icon_json | entities }}"
+     style="height: {{ google_maps_field:map_height ?? 420 }}px; width: 100%;">
+</div>
+```
+
+> **Important — `| entities`:** `marker_icon_json` contains double-quotes. When written into an HTML `data-*` attribute you **must** use `| entities` so the quotes are HTML-encoded (`"` → `&quot;`). Without it, the browser truncates the attribute at the first inner `"` and `JSON.parse` fails silently.
+
+### In the map adapter
+
+The `window.AltMap` adapter reads `mapEl.dataset.marker`, parses it, and builds the appropriate icon object for each provider:
+
+- **Leaflet** — `L.icon({ iconUrl, iconSize: [width, height] })`
+- **Google Maps** — `{ url, scaledSize: new google.maps.Size(width, height) }`
 
 ## Map Styles (Snazzy Maps)
 
