@@ -19,15 +19,41 @@ A location picker fieldtype for [Statamic CMS](https://statamic.com) with suppor
 
 ## Security
 
-> **⚠️ Required for the Google Maps provider.** The Maps JavaScript API requires the API key to be embedded in the `<script src=…>` URL — there is no way to proxy this server-side. **You must restrict the key in Google Cloud Console**, otherwise anyone can copy it from your site's HTML and use your quota.
+### API key visibility in the browser
 
-In [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
+> **⚠️ The API key is visible in the page source of any site using the Google Maps provider.** This is unavoidable — the Maps JavaScript API requires the key to be embedded in a `<script src=…>` URL loaded by the browser. There is no server-side proxy alternative for the client SDK.
 
-1. **Application restrictions** — set **HTTP referrers** to your production domain(s), e.g. `https://example.com/*`, `https://*.example.com/*`. For local development add `http://localhost:*/*`.
-2. **API restrictions** — restrict the key to **Maps JavaScript API** and **Geocoding API** only. Do **not** leave it unrestricted.
-3. Use a **separate key** for staging/production and rotate if a key was ever published unrestricted.
+Three things to understand:
 
-The addon also enforces, server-side:
+1. **The key is intentionally sent to the frontend.** The addon always passes `api_key` from your `.env` to the JavaScript layer — even when the global map provider is set to `osm`. This is necessary because individual fields can override the provider to `google` independently of the site-wide default. Without this, a field set to Google Maps would fail on an OSM-default site.
+
+2. **The risk is quota abuse, not credential theft.** Anyone visiting your published site can read the key from the page source or DevTools. They cannot, however, read your `.env` file, your server credentials, or any other secrets. The threat is someone copying the key and using it in their own application, consuming your Maps API quota (and potentially triggering billing).
+
+3. **The mitigation is key restrictions in Google Cloud Console — not hiding the key.** A properly restricted key is safe to be public. An unrestricted key is a liability even if you try to hide it.
+
+### Restricting your API key (required)
+
+In [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials):
+
+1. **Application restrictions → HTTP referrers** — add your production domain(s):
+    ```
+    https://example.com/*
+    https://*.example.com/*
+    ```
+    A key restricted to your domain(s) cannot be used by anyone else — requests from other origins are rejected by Google, regardless of whether someone has copied the key.  
+    For local development, add `http://localhost:*/*` to a **separate development key** (see point 3).
+
+2. **API restrictions** — restrict the key to **Maps JavaScript API** and **Geocoding API** only. An unrestricted key grants access to every Google Cloud API your project has enabled.
+
+3. **Use separate keys for development and production.** Never commit or share your production key. If a key was ever published unrestricted (e.g. pushed to a public repo), rotate it immediately.
+
+### What is and isn't in your Git history
+
+The addon's source code contains `config('statamic-google-maps.api_key')` — that is what gets committed. The **value** of the key lives only in your `.env` file, which is listed in `.gitignore` and is never committed. Anyone cloning your repository will see the code that reads the key, not the key itself.
+
+### Server-side protections
+
+The addon also enforces the following server-side:
 
 - **Nominatim ToS compliance** — geocoding requests are proxied through the CP (never browser-direct), cached for 24h, and throttled to 1 request/sec across the whole app.
 - **HTML sanitization on `infobox_content`** — `<script>`, `<style>`, `<iframe>`, `<object>`, `<embed>`, `on*=` event handlers, and `javascript:` / `data:` URLs are stripped on save.

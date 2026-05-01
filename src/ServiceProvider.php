@@ -99,10 +99,12 @@ class ServiceProvider extends AddonServiceProvider
             // The Google Maps JavaScript API requires the key in the <script src=…> URL —
             // there is no server-side proxy alternative for the client SDK. Restrict the
             // key in Google Cloud Console (HTTP referrers + API restrictions) — see README.
-            // We only expose it when Google is the active provider so OSM-only sites don't leak it.
-            $provider = config('statamic-google-maps.map_provider', 'google');
+            // The key must be available even when the global provider is OSM, because individual
+            // fields may override map_provider to 'google' (per-field config beats global).
+            $apiKey = (string) config('statamic-google-maps.api_key', '');
             $payload = [
-                'map_provider'    => $provider,
+                'api_key'         => $apiKey,
+                'map_provider'    => config('statamic-google-maps.map_provider', 'google'),
                 'defaults'        => config('statamic-google-maps.defaults'),
                 'map_height'      => config('statamic-google-maps.map_height', 420),
                 'map_type'        => config('statamic-google-maps.map_type', 'roadmap'),
@@ -113,10 +115,6 @@ class ServiceProvider extends AddonServiceProvider
                 'marker_icon_width'  => config('statamic-google-maps.marker_icon_width', 40),
                 'marker_icon_height' => config('statamic-google-maps.marker_icon_height', 40),
             ];
-
-            if ($provider === 'google') {
-                $payload['api_key'] = config('statamic-google-maps.api_key');
-            }
 
             \Statamic\Statamic::provideToScript(['googleMaps' => $payload]);
         }
