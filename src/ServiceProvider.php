@@ -60,9 +60,16 @@ class ServiceProvider extends AddonServiceProvider
         $storageFile = storage_path('app/statamic/google-maps-settings.json');
         $stored = [];
         if (file_exists($storageFile)) {
-            $data = json_decode(file_get_contents($storageFile), true);
-            if (is_array($data)) {
-                $stored = $data;
+            try {
+                $data = json_decode(file_get_contents($storageFile), true, 512, JSON_THROW_ON_ERROR);
+                if (is_array($data)) {
+                    $stored = $data;
+                }
+            } catch (\JsonException $e) {
+                \Illuminate\Support\Facades\Log::warning(
+                    'Corrupted google-maps-settings.json — falling back to config defaults',
+                    ['error' => $e->getMessage(), 'path' => $storageFile]
+                );
             }
         }
 
@@ -89,21 +96,29 @@ class ServiceProvider extends AddonServiceProvider
         }
 
         if (! $this->app->runningInConsole()) {
-            \Statamic\Statamic::provideToScript([
-                'googleMaps' => [
-                    'api_key'         => config('statamic-google-maps.api_key'),
-                    'map_provider'    => config('statamic-google-maps.map_provider'),
-                    'defaults'        => config('statamic-google-maps.defaults'),
-                    'map_height'      => config('statamic-google-maps.map_height', 420),
-                    'map_type'        => config('statamic-google-maps.map_type', 'roadmap'),
-                    'infobox_title'      => config('statamic-google-maps.infobox_title', ''),
-                    'infobox_content'    => config('statamic-google-maps.infobox_content', ''),
-                    'map_style'          => config('statamic-google-maps.map_style', ''),
-                    'marker_icon_url'    => config('statamic-google-maps.marker_icon_url', ''),
-                    'marker_icon_width'  => config('statamic-google-maps.marker_icon_width', 40),
-                    'marker_icon_height' => config('statamic-google-maps.marker_icon_height', 40),
-                ],
-            ]);
+            // The Google Maps JavaScript API requires the key in the <script src=…> URL —
+            // there is no server-side proxy alternative for the client SDK. Restrict the
+            // key in Google Cloud Console (HTTP referrers + API restrictions) — see README.
+            // We only expose it when Google is the active provider so OSM-only sites don't leak it.
+            $provider = config('statamic-google-maps.map_provider', 'google');
+            $payload = [
+                'map_provider'    => $provider,
+                'defaults'        => config('statamic-google-maps.defaults'),
+                'map_height'      => config('statamic-google-maps.map_height', 420),
+                'map_type'        => config('statamic-google-maps.map_type', 'roadmap'),
+                'infobox_title'      => config('statamic-google-maps.infobox_title', ''),
+                'infobox_content'    => config('statamic-google-maps.infobox_content', ''),
+                'map_style'          => config('statamic-google-maps.map_style', ''),
+                'marker_icon_url'    => config('statamic-google-maps.marker_icon_url', ''),
+                'marker_icon_width'  => config('statamic-google-maps.marker_icon_width', 40),
+                'marker_icon_height' => config('statamic-google-maps.marker_icon_height', 40),
+            ];
+
+            if ($provider === 'google') {
+                $payload['api_key'] = config('statamic-google-maps.api_key');
+            }
+
+            \Statamic\Statamic::provideToScript(['googleMaps' => $payload]);
         }
     }
 }

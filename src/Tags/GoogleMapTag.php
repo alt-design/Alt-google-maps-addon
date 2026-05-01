@@ -45,6 +45,49 @@ class GoogleMapTag extends Tags
     }
 
     /**
+     * {{ google_map:multi :markers="location:markers_json" :clustering="location:enable_clustering" :zoom="location:zoom" height="400" }}
+     * Renders a multi-marker map with optional clustering (Google Maps only).
+     */
+    public function multi(): string
+    {
+        $markersJson = $this->params->get('markers', '[]');
+        $clustering   = filter_var($this->params->get('clustering', false), FILTER_VALIDATE_BOOLEAN);
+        $clusterColor = (string) $this->params->get('cluster_color', '');
+        $zoom        = $this->params->get('zoom') !== null ? (int) $this->params->get('zoom') : null;
+        $height      = (int) $this->params->get('height', config('statamic-google-maps.map_height', 420));
+        $width       = $this->params->get('width', '100%');
+        $id          = $this->params->get('id', 'gmap-multi-' . uniqid());
+        $provider    = $this->params->get('provider', config('statamic-google-maps.map_provider', 'google'));
+        $key         = config('statamic-google-maps.api_key', '');
+        $mapType     = $this->params->get('map_type', config('statamic-google-maps.map_type', 'roadmap'));
+        $defaultZoom = (int) $this->params->get('default_zoom', config('statamic-google-maps.defaults.zoom', 13));
+
+        // Decode to validate; pass raw JSON string to the view
+        $markers = json_decode($markersJson, true);
+        if (! is_array($markers) || empty($markers)) {
+            return '<!-- google_map:multi: no valid markers -->';
+        }
+
+        if ($provider === 'google' && empty($key)) {
+            return '<!-- google_map:multi: GOOGLE_MAPS_API_KEY not configured -->';
+        }
+
+        return view('statamic-google-maps::map-multi', [
+            'markers_json'  => $markersJson,
+            'clustering'    => $clustering,
+            'cluster_color' => $clusterColor,
+            'zoom'         => $zoom,
+            'default_zoom' => $defaultZoom,
+            'height'       => $height,
+            'width'        => $width,
+            'id'           => $id,
+            'provider'     => $provider,
+            'key'          => $key,
+            'map_type'     => $mapType,
+        ])->render();
+    }
+
+    /**
      * {{ google_map:static :lat="location:lat" :lng="location:lng" }}
      * Returns a static map image URL (Google Maps only).
      */
@@ -66,6 +109,6 @@ class GoogleMapTag extends Tags
 
         return "https://maps.googleapis.com/maps/api/staticmap?"
             . "center={$lat},{$lng}&zoom={$zoom}&size={$w}x{$h}"
-            . "&markers=color:red%7C{$lat},{$lng}&key={$key}";
+            . "&markers=color:red%7C{$lat},{$lng}&key=" . urlencode($key);
     }
 }

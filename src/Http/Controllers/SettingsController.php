@@ -2,6 +2,7 @@
 
 namespace AltDesign\AltGoogleMapsAddon\Http\Controllers;
 
+use AltDesign\AltGoogleMapsAddon\Fieldtypes\GoogleMapsFieldtype;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Statamic\CP\PublishForm;
@@ -41,10 +42,10 @@ class SettingsController extends Controller
             'lng'             => $values->get('lng') !== null && $values->get('lng') !== '' ? (float) $values->get('lng') : null,
             'zoom'            => $values->get('zoom') !== null ? (int) $values->get('zoom') : 13,
             'map_provider'    => in_array($values->get('map_provider'), ['google', 'osm']) ? $values->get('map_provider') : 'google',
-            'infobox_title'      => trim((string) ($values->get('infobox_title') ?? '')),
-            'infobox_content'    => trim((string) ($values->get('infobox_content') ?? '')),
+            'infobox_title'      => GoogleMapsFieldtype::sanitizePlainText($values->get('infobox_title') ?? ''),
+            'infobox_content'    => GoogleMapsFieldtype::sanitizeHtml($values->get('infobox_content') ?? ''),
             'map_style'          => trim((string) ($values->get('map_style') ?? '')),
-            'marker_icon_url'    => trim((string) ($values->get('marker_icon_url') ?? '')),
+            'marker_icon_url'    => GoogleMapsFieldtype::sanitizeUrl($values->get('marker_icon_url') ?? ''),
             'marker_icon_width'  => $values->get('marker_icon_width') !== null ? (int) $values->get('marker_icon_width') : 32,
             'marker_icon_height' => $values->get('marker_icon_height') !== null ? (int) $values->get('marker_icon_height') : 40,
         ];
@@ -71,9 +72,16 @@ class SettingsController extends Controller
     private function getDefaults(): array
     {
         if (file_exists($this->storageFile)) {
-            $data = json_decode(file_get_contents($this->storageFile), true);
-            if (is_array($data)) {
-                return $data;
+            try {
+                $data = json_decode(file_get_contents($this->storageFile), true, 512, JSON_THROW_ON_ERROR);
+                if (is_array($data)) {
+                    return $data;
+                }
+            } catch (\JsonException $e) {
+                \Illuminate\Support\Facades\Log::warning(
+                    'Corrupted google-maps-settings.json — using config defaults',
+                    ['error' => $e->getMessage()]
+                );
             }
         }
 

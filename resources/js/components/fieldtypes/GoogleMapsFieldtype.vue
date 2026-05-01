@@ -1,6 +1,9 @@
 <template>
     <div class="flex flex-col gap-3 p-3 bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-xl">
 
+        <!-- ══════════════ SINGLE-MARKER MODE ══════════════ -->
+        <template v-if="!isMulti">
+
         <!-- Location header -->
         <div class="flex items-center gap-2 min-w-0">
             <span class="gmf-pin-badge">
@@ -163,27 +166,175 @@
             </div>
         </template>
 
-        <!-- Footer: clear -->
+        <!-- Footer: clear (single) -->
         <div v-if="hasLocation && !props.readOnly" class="flex justify-end">
             <button type="button" class="gmf-clear-btn" @click.prevent="clearLocation">
-                <svg xmlns="http://www.w3.org/2000/svg" class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M18 6 6 18M6 6l12 12"/>
+                <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
                 </svg>
                 Clear location
             </button>
         </div>
+
+        </template><!-- /single -->
+
+        <!-- ══════════════ MULTI-MARKER MODE ══════════════ -->
+        <template v-else>
+
+            <!-- ── Header: count + global toggle ── -->
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                    <span class="gmf-pin-badge">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2a7 7 0 0 1 7 7c0 5.25-7 13-7 13S5 14.25 5 9a7 7 0 0 1 7-7Zm0 4.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z"/>
+                        </svg>
+                    </span>
+                    <span class="text-sm font-medium text-gray-700 dark:text-gray-200">
+                        {{ markersData.length }} marker{{ markersData.length !== 1 ? 's' : '' }}
+                    </span>
+                    <span v-if="!props.readOnly" class="text-xs text-gray-400">· drag rows to reorder</span>
+                </div>
+                <button v-if="!props.readOnly" type="button"
+                    class="gmf-toggle-btn"
+                    :class="fieldEnabled ? 'gmf-toggle-on' : 'gmf-toggle-off'"
+                    :title="fieldEnabled ? 'Disable field' : 'Enable field'"
+                    @click.prevent="fieldEnabled = !fieldEnabled">
+                    <span class="gmf-toggle-knob"></span>
+                </button>
+            </div>
+
+            <!-- ── Tab switcher: Individual / Edit all ── -->
+            <div v-if="!props.readOnly" class="flex gap-1 p-1 bg-gray-200 dark:bg-gray-800 rounded-lg">
+                <button type="button"
+                    class="gmf-tab-btn flex-1"
+                    :class="editMode === 'individual' ? 'gmf-tab-active' : 'gmf-tab-inactive'"
+                    @click.prevent="editMode = 'individual'">
+                    Individual
+                </button>
+                <button type="button"
+                    class="gmf-tab-btn flex-1"
+                    :class="editMode === 'bulk' ? 'gmf-tab-active gmf-tab-bulk-active' : 'gmf-tab-inactive'"
+                    @click.prevent="editMode = 'bulk'">
+                    Edit all
+                </button>
+            </div>
+
+            <!-- ── Apply feedback toast (outside panels so it persists after tab switch) ── -->
+            <div v-if="bulkToast" class="gmf-toast">✓ {{ bulkToast }}</div>
+
+            <!-- ══ EDIT ALL PANEL ══ -->
+            <BulkEditPanel
+                v-if="editMode === 'bulk'"
+                :map-provider="mapProvider"
+                :map-height="mapHeight"
+                :default-lat="defaultLat"
+                :default-lng="defaultLng"
+                :api-key="globalConfig.api_key"
+                :asset-meta="markerAssetMeta"
+                :asset-config="markerAssetConfig"
+                :default-zoom="defaultZoom"
+                @apply="onBulkApply"
+            />
+
+            <!-- ══ MARKER LIST (always visible) ══ -->
+            <sortable-list
+                v-model="markersData"
+                item-class="gmf-marker-item"
+                handle-class="gmf-marker-handle"
+                :distance="5"
+                :mirror="false"
+                :vertical="true"
+                @update:model-value="onMarkersReordered"
+            >
+                <div class="flex flex-col gap-2">
+                    <MarkerListRow
+                        v-for="(item, index) in markersData"
+                        :key="item._id"
+                        :item="item"
+                        :expanded="expandedMarker === item._id"
+                        :read-only="props.readOnly"
+                        :map-provider="mapProvider"
+                        :map-height="mapHeight"
+                        :asset-meta="markerAssetMeta"
+                        :asset-config="markerAssetConfig"
+                        :asset-ids="markerAssetIdsMap[item._id] || []"
+                        :is-searching="markerSearching[item._id] || false"
+                        :search-error="markerSearchErrors[item._id] || ''"
+                        :map-type="markerMapType[item._id] || 'roadmap'"
+                        @toggle-expanded="toggleExpanded(item._id)"
+                        @toggle-enabled="toggleMarkerEnabled(item._id)"
+                        @remove="removeMarker(item._id)"
+                        @update-field="(field, value) => updateMarkerField(item._id, field, value)"
+                        @update-coord="(field, raw) => updateMarkerCoord(item._id, field, raw)"
+                        @clear-location="clearMarkerLocation(item._id)"
+                        @search="(query) => searchMarker(item._id, query)"
+                        @asset-update="(ids) => onMultiMarkerAssetUpdate(item._id, ids)"
+                        @set-map-type="(type) => setMarkerMapType(item._id, type)"
+                        @map-ref="(el) => setMarkerMapRef(item._id, el)"
+                    />
+                </div><!-- /v-for wrapper -->
+            </sortable-list>
+
+            <!-- ── Footer ── -->
+            <div v-if="!props.readOnly" class="flex items-center gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <!-- Add marker (left) -->
+                <button type="button" class="gmf-add-btn flex-shrink-0" @click.prevent="addMarker">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    Add Marker
+                </button>
+
+                <!-- Zoom (center) -->
+                <div class="flex flex-1 self-stretch items-center justify-center gap-0 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                    <span class="flex items-center gap-1.5 px-3 bg-gray-50 dark:bg-gray-700 self-stretch border-r border-gray-200 dark:border-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5 text-gray-400 dark:text-gray-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35M11 8v6M8 11h6"/>
+                        </svg>
+                        <span class="text-2xs uppercase font-semibold text-gray-400 dark:text-gray-500 whitespace-nowrap">Zoom</span>
+                    </span>
+                    <input type="number" min="1" max="21" class="gmf-input flex-1 !border-0 !ring-0 text-center bg-white dark:bg-gray-800" style="max-width:5rem;" placeholder="auto"
+                        :value="zoomOverride || ''"
+                        :disabled="props.readOnly"
+                        @change="onZoomOverrideChange($event.target.value)" />
+                    <span class="flex items-center self-stretch px-3 bg-gray-50 dark:bg-gray-700 border-l border-gray-200 dark:border-gray-700 text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">auto-fits</span>
+                </div>
+
+                <!-- Right: clear data + clear all -->
+                <div v-if="markersData.length > 0" class="flex items-center gap-2 flex-shrink-0">
+                    <button type="button" class="gmf-clear-btn" @click.prevent="clearAllMarkersData">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                            <line x1="4" y1="4" x2="20" y2="20"/>
+                        </svg>
+                        Clear all data
+                    </button>
+                    <button type="button" class="gmf-clear-btn" @click.prevent="clearAllMarkers">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+                        </svg>
+                        Clear all
+                    </button>
+                </div>
+                <!-- Spacer to keep zoom centered when no markers -->
+                <div v-else class="flex-shrink-0" style="width:5rem;"></div>
+            </div>
+
+        </template><!-- /multi -->
+
     </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, getCurrentInstance } from 'vue';
+import { MarkerClusterer } from '@googlemaps/markerclusterer';
+import { loadGoogleMapsScript, loadLeaflet, getLeaflet } from '../../composables/useMapLoader.js';
+import { postCp, googleGeocode, googleReverseGeocode, geocodeAddress, reverseGeocodeAddress } from '../../composables/useGeocoder.js';
+import MarkerListRow from './partials/MarkerListRow.vue';
+import BulkEditPanel from './partials/BulkEditPanel.vue';
 
-// Module-level cache so multiple fieldtype instances share one load promise
-let googleMapsLoadPromise = null;
-let leafletLib = null;
-
-// Capture instance synchronously during setup — getCurrentInstance() returns null in async calls
 const _instance = getCurrentInstance();
+const _axios = _instance?.proxy?.$axios ?? null;
 
 const props = defineProps({
     value: { default: null },
@@ -195,17 +346,15 @@ const props = defineProps({
 
 const emit = defineEmits(['update:value']);
 
-function update(value) {
-    internalValue.value = { ...value }; // update local state immediately — don't wait for props to round-trip
-    emit('update:value', value);
-}
+// ─── Mode ──────────────────────────────────────────────────────────────────────
+const isMulti = computed(() => !!props.config.enable_multiple);
 
+// ─── Global config ─────────────────────────────────────────────────────────────
 const globalConfig = computed(() => Statamic.$config.get('googleMaps') || {});
 const mapProvider = computed(() =>
     props.config.map_provider || globalConfig.value.map_provider || 'google'
 );
 const mapHeight = computed(() => props.config.map_height || globalConfig.value.map_height || 420);
-
 const defaultZoom = computed(() =>
     parseInt(props.config.default_zoom) || globalConfig.value.defaults?.zoom || 13
 );
@@ -216,43 +365,412 @@ const defaultLng = computed(() =>
     parseFloat(props.config.default_lng) || globalConfig.value.defaults?.lng || null
 );
 
-// Ref (not computed) so inputs update immediately without waiting for Statamic's props cycle
+// ─── Single-marker state ───────────────────────────────────────────────────────
+function makeSingleDefault() {
+    return {
+        lat: defaultLat.value, lng: defaultLng.value, address: '',
+        zoom: defaultZoom.value, infobox_title: '', infobox_content: '',
+        marker_icon_url: '', marker_icon_width: 0, marker_icon_height: 0, marker_asset_id: '',
+    };
+}
+
 const internalValue = ref(
     props.value && typeof props.value === 'object' && props.value.lat != null
         ? { ...props.value }
-        : {
-            lat: defaultLat.value,
-            lng: defaultLng.value,
-            address: '',
-            zoom: defaultZoom.value,
-            infobox_title: '',
-            infobox_content: '',
-            marker_icon_url: '',
-            marker_icon_width: 0,
-            marker_icon_height: 0,
-            marker_asset_id: '',
-        }
+        : makeSingleDefault()
 );
 
 const hasLocation = computed(() =>
     internalValue.value.lat != null && internalValue.value.lng != null
 );
 
-// ─── Search state ──────────────────────────────────────────────────────────────
+function update(value) {
+    internalValue.value = { ...value };
+    emit('update:value', value);
+}
 
+// ─── Multi-marker state ────────────────────────────────────────────────────────
+let _nextId = 1;
+function genId() { return 'gmf-' + (_nextId++) + '-' + Math.random().toString(36).slice(2, 7); }
+
+function wrapMarker(m) {
+    return {
+        _id: genId(),
+        lat: m.lat ?? null,
+        lng: m.lng ?? null,
+        address: m.address ?? '',
+        zoom: m.zoom ?? defaultZoom.value,
+        infobox_title: m.infobox_title ?? '',
+        infobox_content: m.infobox_content ?? '',
+        marker_icon_url: m.marker_icon_url ?? '',
+        marker_icon_width: m.marker_icon_width ?? 0,
+        marker_icon_height: m.marker_icon_height ?? 0,
+        marker_asset_id: m.marker_asset_id ?? '',
+        enabled: m.enabled !== false, // default on
+    };
+}
+
+function initMarkersFromProp() {
+    const v = props.value;
+    if (!v || typeof v !== 'object') return [];
+    if (Array.isArray(v.markers)) return v.markers.map(wrapMarker);
+    return [];
+}
+
+const markersData = ref(initMarkersFromProp());
+const zoomOverride = ref(props.value?.zoom_override != null ? props.value.zoom_override : null);
+
+// Global field enabled toggle
+const fieldEnabled = ref(true);
+
+// Edit mode: 'individual' | 'bulk'
+const editMode = ref('individual');
+
+// Active count (enabled markers)
+const activeMarkerCount = computed(() => markersData.value.filter(m => m.enabled !== false).length);
+
+const expandedMarker = ref(null);
+const markerSearching = ref({});
+const markerSearchErrors = ref({});
+const markerAssetIdsMap = ref({});
+
+// Per-marker individual mini-map state
+const markerMapInstances = {}; // _id -> mapInstance
+const markerMapMarkers = {};   // _id -> markerInstance
+let markerMapRefs = {};        // _id -> DOM el (populated by :ref callback)
+const markerMapType = ref({});  // _id -> 'roadmap' | 'satellite'
+
+// Toast shown above the marker list after a bulk-apply — stays in parent so
+// it persists when the user switches back to the Individual tab.
+const bulkToast = ref('');
+let _bulkToastTimer = null;
+
+markersData.value.forEach(m => {
+    if (m.marker_asset_id) markerAssetIdsMap.value[m._id] = [m.marker_asset_id];
+});
+
+function emitMulti() {
+    emit('update:value', {
+        zoom_override: zoomOverride.value,
+        markers: markersData.value.map(({ _id, ...rest }) => rest),
+    });
+}
+
+function addMarker() {
+    const m = wrapMarker({});
+    markersData.value = [...markersData.value, m];
+    expandedMarker.value = m._id;
+    emitMulti();
+    nextTick(() => {
+        refreshMultiMapMarkers();
+        initMarkerMiniMap(m._id);
+    });
+}
+
+function removeMarker(id) {
+    if (!window.confirm('Are you sure you want to remove this marker?')) return;
+    destroyMarkerMiniMap(id);
+    markersData.value = markersData.value.filter(m => m._id !== id);
+    if (expandedMarker.value === id) expandedMarker.value = null;
+    delete markerAssetIdsMap.value[id];
+    delete markerSearching.value[id];
+    delete markerSearchErrors.value[id];
+    delete markerMapType.value[id];
+    emitMulti();
+    nextTick(() => refreshMultiMapMarkers());
+}
+
+function toggleExpanded(id) {
+    const wasExpanded = expandedMarker.value === id;
+    expandedMarker.value = wasExpanded ? null : id;
+    if (!wasExpanded) {
+        nextTick(() => initMarkerMiniMap(id));
+    } else {
+        destroyMarkerMiniMap(id);
+    }
+}
+
+function toggleMarkerEnabled(id) {
+    markersData.value = markersData.value.map(m =>
+        m._id === id ? { ...m, enabled: m.enabled === false ? true : false } : m
+    );
+    emitMulti();
+    nextTick(() => refreshMultiMapMarkers());
+}
+
+function updateMarkerField(id, field, value) {
+    markersData.value = markersData.value.map(m => m._id === id ? { ...m, [field]: value } : m);
+    emitMulti();
+}
+
+function updateMarkerCoord(id, field, rawValue) {
+    const num = field === 'zoom' ? parseInt(rawValue) : parseFloat(rawValue);
+    if (isNaN(num)) return;
+    markersData.value = markersData.value.map(m => m._id === id ? { ...m, [field]: num } : m);
+    emitMulti();
+    nextTick(() => {
+        refreshMultiMapMarkers();
+        syncMarkerMiniMapPin(id);
+    });
+}
+
+function clearMarkerLocation(id) {
+    if (!window.confirm('Are you sure you want to clear this location?')) return;
+    markersData.value = markersData.value.map(m =>
+        m._id === id ? { ...m, lat: null, lng: null, address: '', zoom: defaultZoom.value } : m
+    );
+    emitMulti();
+    nextTick(() => {
+        refreshMultiMapMarkers();
+        syncMarkerMiniMapPin(id);
+    });
+}
+
+function onMarkersReordered(newList) {
+    markersData.value = newList;
+    emitMulti();
+}
+
+function clearAllMarkersData() {
+    if (!window.confirm(`Are you sure you want to clear all data from ${markersData.value.length} marker${markersData.value.length !== 1 ? 's' : ''}? Locations, addresses and infoboxes will be reset.`)) return;
+    markersData.value = markersData.value.map(m => ({
+        ...m,
+        lat: null, lng: null, address: '', zoom: defaultZoom.value,
+        infobox_title: '', infobox_content: '',
+        marker_icon_url: '', marker_icon_width: 0, marker_icon_height: 0, marker_asset_id: '',
+    }));
+    markerAssetIdsMap.value = {};
+    markerSearching.value = {};
+    markerSearchErrors.value = {};
+    emitMulti();
+    nextTick(() => {
+        refreshMultiMapMarkers();
+        Object.keys(markerMapInstances).forEach(id => syncMarkerMiniMapPin(id));
+    });
+}
+
+function clearAllMarkers() {
+    if (!window.confirm(`Are you sure you want to delete all ${markersData.value.length} marker${markersData.value.length !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+    Object.keys(markerMapInstances).forEach(id => destroyMarkerMiniMap(id));
+    markerMapRefs = {};
+    markersData.value = [];
+    expandedMarker.value = null;
+    markerAssetIdsMap.value = {};
+    markerSearching.value = {};
+    markerSearchErrors.value = {};
+    markerMapType.value = {};
+    emitMulti();
+    nextTick(() => refreshMultiMapMarkers());
+}
+
+function onZoomOverrideChange(rawValue) {
+    const num = parseInt(rawValue);
+    zoomOverride.value = isNaN(num) ? null : num;
+    emitMulti();
+    if (mapInstance && zoomOverride.value) mapInstance.setZoom(zoomOverride.value);
+}
+
+// ─── Per-marker mini-map helpers ───────────────────────────────────────────────
+function setMarkerMapRef(id, el) {
+    markerMapRefs[id] = el;
+}
+
+async function initMarkerMiniMap(id) {
+    await nextTick();
+    const el = markerMapRefs[id];
+    if (!el || markerMapInstances[id]) return;
+
+    const m = markersData.value.find(x => x._id === id);
+    if (!m) return;
+
+    const lat = m.lat ?? (defaultLat.value ?? 0);
+    const lng = m.lng ?? (defaultLng.value ?? 0);
+    const zoom = m.lat != null ? (m.zoom || defaultZoom.value) : 2;
+
+    if (mapProvider.value === 'osm') {
+        const L = await loadLeaflet();
+        const mini = L.map(el, { center: [lat, lng], zoom });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors', maxZoom: 21,
+        }).addTo(mini);
+        markerMapInstances[id] = mini;
+        if (m.lat != null) {
+            const pin = L.marker([lat, lng], { draggable: !props.readOnly }).addTo(mini);
+            markerMapMarkers[id] = pin;
+            if (!props.readOnly) {
+                pin.on('dragend', e => {
+                    const p = e.target.getLatLng();
+                    onMarkerMiniMapPick(id, p.lat, p.lng);
+                });
+            }
+        }
+        if (!props.readOnly) {
+            mini.on('click', e => {
+                placeOrMoveMarkerMiniMapPin(id, e.latlng.lat, e.latlng.lng);
+                onMarkerMiniMapPick(id, e.latlng.lat, e.latlng.lng);
+            });
+        }
+    } else {
+        await loadGoogleMapsScript(globalConfig.value.api_key);
+        const mapType = markerMapType.value[id] || 'roadmap';
+        const mini = new window.google.maps.Map(el, {
+            center: { lat, lng }, zoom, mapTypeId: mapType,
+            gestureHandling: props.readOnly ? 'none' : 'auto',
+        });
+        markerMapInstances[id] = mini;
+        if (m.lat != null) {
+            const pin = new window.google.maps.Marker({
+                position: { lat, lng }, map: mini, draggable: !props.readOnly,
+            });
+            markerMapMarkers[id] = pin;
+            if (!props.readOnly) {
+                pin.addListener('dragend', () => {
+                    const pos = pin.getPosition();
+                    onMarkerMiniMapPick(id, pos.lat(), pos.lng());
+                });
+            }
+        }
+        if (!props.readOnly) {
+            mini.addListener('click', e => {
+                placeOrMoveMarkerMiniMapPin(id, e.latLng.lat(), e.latLng.lng());
+                onMarkerMiniMapPick(id, e.latLng.lat(), e.latLng.lng());
+            });
+        }
+    }
+}
+
+function destroyMarkerMiniMap(id) {
+    const mini = markerMapInstances[id];
+    if (mini) {
+        try {
+            if (mapProvider.value === 'osm') mini.remove();
+            else if (markerMapMarkers[id]) markerMapMarkers[id].setMap(null);
+        } catch {}
+    }
+    delete markerMapInstances[id];
+    delete markerMapMarkers[id];
+    delete markerMapRefs[id];
+}
+
+function placeOrMoveMarkerMiniMapPin(id, lat, lng) {
+    if (mapProvider.value === 'osm') {
+        const L = getLeaflet();
+        if (!markerMapMarkers[id]) {
+            const pin = L.marker([lat, lng], { draggable: !props.readOnly }).addTo(markerMapInstances[id]);
+            markerMapMarkers[id] = pin;
+            if (!props.readOnly) {
+                pin.on('dragend', e => {
+                    const p = e.target.getLatLng();
+                    onMarkerMiniMapPick(id, p.lat, p.lng);
+                });
+            }
+        } else {
+            markerMapMarkers[id].setLatLng([lat, lng]);
+        }
+        markerMapInstances[id].panTo([lat, lng]);
+    } else {
+        if (!markerMapMarkers[id]) {
+            const pin = new window.google.maps.Marker({
+                position: { lat, lng }, map: markerMapInstances[id], draggable: !props.readOnly,
+            });
+            markerMapMarkers[id] = pin;
+            if (!props.readOnly) {
+                pin.addListener('dragend', () => {
+                    const pos = pin.getPosition();
+                    onMarkerMiniMapPick(id, pos.lat(), pos.lng());
+                });
+            }
+        } else {
+            markerMapMarkers[id].setPosition({ lat, lng });
+        }
+        markerMapInstances[id].panTo({ lat, lng });
+    }
+}
+
+function syncMarkerMiniMapPin(id) {
+    const m = markersData.value.find(x => x._id === id);
+    if (!m || m.lat == null || !markerMapInstances[id]) return;
+    placeOrMoveMarkerMiniMapPin(id, m.lat, m.lng);
+    if (m.zoom) markerMapInstances[id].setZoom(m.zoom);
+}
+
+async function onMarkerMiniMapPick(id, lat, lng) {
+    markersData.value = markersData.value.map(m => m._id === id ? { ...m, lat, lng } : m);
+    emitMulti();
+    refreshMultiMapMarkers();
+    try {
+        let address = null;
+        if (mapProvider.value === 'osm') {
+            const data = await postCp('google-maps/reverse-geocode', { lat, lng, provider: 'osm' }, _axios);
+            if (data.success) address = data.result.address;
+        } else {
+            address = await googleReverseGeocode(lat, lng);
+        }
+        if (address) {
+            markersData.value = markersData.value.map(m => m._id === id ? { ...m, address } : m);
+            emitMulti();
+        }
+    } catch {}
+}
+
+function setMarkerMapType(id, type) {
+    markerMapType.value = { ...markerMapType.value, [id]: type };
+    const mini = markerMapInstances[id];
+    if (mini && window.google?.maps) {
+        mini.setMapTypeId(type);
+    }
+}
+
+// ─── Bulk apply handler ────────────────────────────────────────────────────────
+function onBulkApply({ template: t, fields, scope }) {
+    const targets = scope === 'active'
+        ? markersData.value.filter(m => m.enabled !== false)
+        : [...markersData.value];
+    const targetIds = new Set(targets.map(x => x._id));
+    markersData.value = markersData.value.map(m => {
+        if (!targetIds.has(m._id)) return m;
+        const patch = {};
+        if (fields.zoom && t.zoom) patch.zoom = t.zoom;
+        if (fields.infobox) {
+            patch.infobox_title   = t.infobox_title;
+            patch.infobox_content = t.infobox_content;
+        }
+        if (fields.icon) {
+            patch.marker_icon_url    = t.marker_icon_url;
+            patch.marker_icon_width  = t.marker_icon_width;
+            patch.marker_icon_height = t.marker_icon_height;
+            patch.marker_asset_id    = t.marker_asset_id;
+        }
+        return { ...m, ...patch };
+    });
+    if (fields.icon) {
+        const newMap = { ...markerAssetIdsMap.value };
+        targets.forEach(m => {
+            newMap[m._id] = t.marker_asset_id ? [t.marker_asset_id] : [];
+        });
+        markerAssetIdsMap.value = newMap;
+    }
+    emitMulti();
+    editMode.value = 'individual';
+    if (_bulkToastTimer) clearTimeout(_bulkToastTimer);
+    bulkToast.value = `\u2713 ${targets.length} marker${targets.length !== 1 ? 's' : ''} updated`;
+    _bulkToastTimer = setTimeout(() => { bulkToast.value = ''; }, 4000);
+}
+
+// ─── Search state (single) ─────────────────────────────────────────────────────
 const searchQuery = ref('');
 const isSearching = ref(false);
 const searchError = ref('');
 
-// ─── Map state ────────────────────────────────────────────────────────────────
-
+// ─── Map state ─────────────────────────────────────────────────────────────────
 const mapEl = ref(null);
 let mapInstance = null;
 let markerInstance = null;
+let multiMarkerInstances = [];
+let markerClustererInstance = null;
 const mapReady = ref(false);
 
-// ─── Asset picker (Marker Icon) ───────────────────────────────────────────────
-
+// ─── Asset picker (single) ─────────────────────────────────────────────────────
 const markerAssetIds = ref(
     internalValue.value.marker_asset_id ? [internalValue.value.marker_asset_id] : []
 );
@@ -281,7 +799,7 @@ async function onMarkerAssetUpdate(ids) {
         return;
     }
     try {
-        const assets = await postCp('assets-fieldtype', { assets: ids });
+        const assets = await postCp('assets-fieldtype', { assets: ids }, _axios);
         if (assets?.[0]?.url) {
             update({ ...internalValue.value, marker_icon_url: assets[0].url, marker_asset_id: ids[0] });
         }
@@ -290,16 +808,34 @@ async function onMarkerAssetUpdate(ids) {
     }
 }
 
-// ─── Map initialisation ───────────────────────────────────────────────────────
+async function onMultiMarkerAssetUpdate(markerId, ids) {
+    markerAssetIdsMap.value = { ...markerAssetIdsMap.value, [markerId]: ids ?? [] };
+    if (!ids?.length) {
+        markersData.value = markersData.value.map(m =>
+            m._id === markerId ? { ...m, marker_icon_url: '', marker_asset_id: '' } : m
+        );
+        emitMulti();
+        return;
+    }
+    try {
+        const assets = await postCp('assets-fieldtype', { assets: ids }, _axios);
+        if (assets?.[0]?.url) {
+            markersData.value = markersData.value.map(m =>
+                m._id === markerId ? { ...m, marker_icon_url: assets[0].url, marker_asset_id: ids[0] } : m
+            );
+            emitMulti();
+        }
+    } catch (e) {
+        console.error('[GoogleMapsFieldtype] Multi asset resolve failed:', e);
+    }
+}
 
+// ─── Map init ──────────────────────────────────────────────────────────────────
 async function initMap() {
     if (!mapEl.value) return;
     try {
-        if (mapProvider.value === 'osm') {
-            await initLeaflet();
-        } else {
-            await initGoogleMaps();
-        }
+        if (mapProvider.value === 'osm') await initLeaflet();
+        else await initGoogleMaps();
         mapReady.value = true;
     } catch (err) {
         console.error('[GoogleMapsFieldtype] Map init failed:', err);
@@ -307,12 +843,8 @@ async function initMap() {
 }
 
 async function initLeaflet() {
-    if (!leafletLib) {
-        leafletLib = (await import('leaflet')).default;
-    }
-    const L = leafletLib;
+    const L = await loadLeaflet();
 
-    // Fix default icon paths broken by Vite bundling
     delete L.Icon.Default.prototype._getIconUrl;
     L.Icon.Default.mergeOptions({
         iconUrl:       new URL('leaflet/dist/images/marker-icon.png', import.meta.url).href,
@@ -325,11 +857,18 @@ async function initLeaflet() {
     const zoom = hasLocation.value ? (internalValue.value.zoom || defaultZoom.value) : 2;
 
     mapInstance = L.map(mapEl.value, { center: [lat, lng], zoom });
-
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 21,
     }).addTo(mapInstance);
+
+    if (isMulti.value) {
+        refreshMultiMapMarkersLeaflet();
+        if (!props.readOnly) {
+            mapInstance.on('click', e => addMarkerAtPosition(e.latlng.lat, e.latlng.lng));
+        }
+        return;
+    }
 
     if (hasLocation.value) {
         markerInstance = L.marker([lat, lng], { draggable: !props.readOnly }).addTo(mapInstance);
@@ -352,9 +891,8 @@ async function initLeaflet() {
     }
 
     mapInstance.on('click', e => {
-        const { lat: clat, lng: clng } = e.latlng;
-        placeOrMoveLeafletMarker(clat, clng);
-        onMapPick(clat, clng);
+        placeOrMoveLeafletMarker(e.latlng.lat, e.latlng.lng);
+        onMapPick(e.latlng.lat, e.latlng.lng);
     });
 }
 
@@ -363,24 +901,29 @@ async function initGoogleMaps() {
         mapEl.value.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#6b7280;font-size:0.875rem;text-align:center;padding:1rem;">No Google Maps API key configured.<br>Add <code>GOOGLE_MAPS_API_KEY</code> to your <code>.env</code>,<br>or switch to OpenStreetMap in Tools → Google Maps.</div>';
         return;
     }
-    await loadGoogleMapsScript();
+    await loadGoogleMapsScript(globalConfig.value.api_key);
 
     const lat  = internalValue.value.lat  ?? (defaultLat.value ?? 0);
     const lng  = internalValue.value.lng  ?? (defaultLng.value ?? 0);
     const zoom = hasLocation.value ? (internalValue.value.zoom || defaultZoom.value) : 2;
 
     mapInstance = new window.google.maps.Map(mapEl.value, {
-        center: { lat, lng },
-        zoom,
+        center: { lat, lng }, zoom,
         mapTypeId: globalConfig.value.map_type || 'roadmap',
         gestureHandling: props.readOnly ? 'none' : 'auto',
     });
 
+    if (isMulti.value) {
+        refreshMultiMapMarkersGoogle();
+        if (!props.readOnly) {
+            mapInstance.addListener('click', e => addMarkerAtPosition(e.latLng.lat(), e.latLng.lng()));
+        }
+        return;
+    }
+
     if (hasLocation.value) {
         markerInstance = new window.google.maps.Marker({
-            position: { lat, lng },
-            map: mapInstance,
-            draggable: !props.readOnly,
+            position: { lat, lng }, map: mapInstance, draggable: !props.readOnly,
         });
         if (!props.readOnly) {
             markerInstance.addListener('dragend', () => {
@@ -393,36 +936,142 @@ async function initGoogleMaps() {
     if (props.readOnly) return;
 
     mapInstance.addListener('click', e => {
-        const clat = e.latLng.lat();
-        const clng = e.latLng.lng();
-        placeOrMoveGoogleMarker(clat, clng);
-        onMapPick(clat, clng);
+        placeOrMoveGoogleMarker(e.latLng.lat(), e.latLng.lng());
+        onMapPick(e.latLng.lat(), e.latLng.lng());
     });
 }
 
-function loadGoogleMapsScript() {
-    if (window.google?.maps) return Promise.resolve();
-    if (!googleMapsLoadPromise) {
-        googleMapsLoadPromise = new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${globalConfig.value.api_key}`;
-            script.async = true;
-            script.addEventListener('load', resolve);
-            script.addEventListener('error', () => {
-                googleMapsLoadPromise = null; // allow retry on next mount
-                reject(new Error('Failed to load Google Maps API'));
-            });
-            document.head.appendChild(script);
-        });
-    }
-    return googleMapsLoadPromise;
+// ─── Multi-marker map helpers ──────────────────────────────────────────────────
+function refreshMultiMapMarkers() {
+    if (!mapInstance) return;
+    if (mapProvider.value === 'osm') refreshMultiMapMarkersLeaflet();
+    else refreshMultiMapMarkersGoogle();
 }
 
-// ─── Marker helpers ───────────────────────────────────────────────────────────
+function refreshMultiMapMarkersLeaflet() {
+    const L = getLeaflet();
+    multiMarkerInstances.forEach(m => { try { m.remove(); } catch {} });
+    multiMarkerInstances = [];
 
+    const valid = markersData.value.filter(m => m.lat != null && m.lng != null && m.enabled !== false);
+    if (!valid.length) return;
+
+    valid.forEach(m => {
+        const marker = L.marker([m.lat, m.lng], { draggable: !props.readOnly }).addTo(mapInstance);
+        if (!props.readOnly) {
+            const id = m._id;
+            marker.on('dragend', e => {
+                const p = e.target.getLatLng();
+                onMultiMapPick(id, p.lat, p.lng);
+            });
+        }
+        multiMarkerInstances.push(marker);
+    });
+
+    if (valid.length === 1) {
+        mapInstance.setView([valid[0].lat, valid[0].lng], zoomOverride.value || defaultZoom.value);
+    } else {
+        const group = L.featureGroup(multiMarkerInstances);
+        try { mapInstance.fitBounds(group.getBounds(), { padding: [40, 40] }); } catch {}
+        if (zoomOverride.value) mapInstance.setZoom(zoomOverride.value);
+    }
+}
+
+function refreshMultiMapMarkersGoogle() {
+    // Destroy existing clusterer
+    if (markerClustererInstance) {
+        markerClustererInstance.clearMarkers();
+        markerClustererInstance.setMap(null);
+        markerClustererInstance = null;
+    }
+    multiMarkerInstances.forEach(m => { try { m.setMap(null); } catch {} });
+    multiMarkerInstances = [];
+
+    const valid = markersData.value.filter(m => m.lat != null && m.lng != null && m.enabled !== false);
+    if (!valid.length) return;
+
+    const clustering = !!props.config.enable_clustering;
+    const bounds = new window.google.maps.LatLngBounds();
+
+    valid.forEach(m => {
+        const marker = new window.google.maps.Marker({
+            position: { lat: m.lat, lng: m.lng },
+            // When clustering, don't attach to map directly — clusterer handles that
+            map: clustering ? null : mapInstance,
+            draggable: !props.readOnly,
+        });
+        if (!props.readOnly) {
+            const id = m._id;
+            marker.addListener('dragend', () => {
+                const pos = marker.getPosition();
+                onMultiMapPick(id, pos.lat(), pos.lng());
+            });
+        }
+        bounds.extend({ lat: m.lat, lng: m.lng });
+        multiMarkerInstances.push(marker);
+    });
+
+    if (clustering) {
+        markerClustererInstance = new MarkerClusterer({
+            map: mapInstance,
+            markers: multiMarkerInstances,
+        });
+    }
+
+    if (valid.length === 1) {
+        mapInstance.setCenter({ lat: valid[0].lat, lng: valid[0].lng });
+        mapInstance.setZoom(zoomOverride.value || defaultZoom.value);
+    } else {
+        mapInstance.fitBounds(bounds);
+        if (zoomOverride.value) mapInstance.setZoom(zoomOverride.value);
+    }
+}
+
+async function addMarkerAtPosition(lat, lng) {
+    const m = wrapMarker({ lat, lng });
+    markersData.value = [...markersData.value, m];
+    expandedMarker.value = m._id;
+    emitMulti();
+    await nextTick();
+    refreshMultiMapMarkers();
+    try {
+        let address = null;
+        if (mapProvider.value === 'osm') {
+            const data = await postCp('google-maps/reverse-geocode', { lat, lng, provider: 'osm' }, _axios);
+            if (data.success) address = data.result.address;
+        } else {
+            address = await googleReverseGeocode(lat, lng);
+        }
+        if (address) {
+            markersData.value = markersData.value.map(mk => mk._id === m._id ? { ...mk, address } : mk);
+            emitMulti();
+        }
+    } catch {}
+}
+
+async function onMultiMapPick(markerId, lat, lng) {
+    markersData.value = markersData.value.map(m => m._id === markerId ? { ...m, lat, lng } : m);
+    emitMulti();
+    try {
+        let address = null;
+        if (mapProvider.value === 'osm') {
+            const data = await postCp('google-maps/reverse-geocode', { lat, lng, provider: 'osm' }, _axios);
+            if (data.success) address = data.result.address;
+        } else {
+            address = await googleReverseGeocode(lat, lng);
+        }
+        if (address) {
+            markersData.value = markersData.value.map(m => m._id === markerId ? { ...m, address } : m);
+            emitMulti();
+        }
+    } catch {}
+}
+
+// ─── Single-mode marker helpers ────────────────────────────────────────────────
 function placeOrMoveLeafletMarker(lat, lng) {
     if (!markerInstance) {
-        markerInstance = leafletLib.marker([lat, lng], { draggable: true }).addTo(mapInstance);
+        const L = getLeaflet();
+        markerInstance = L.marker([lat, lng], { draggable: true }).addTo(mapInstance);
         markerInstance.on('dragend', e => {
             const p = e.target.getLatLng();
             onMapPick(p.lat, p.lng);
@@ -435,9 +1084,7 @@ function placeOrMoveLeafletMarker(lat, lng) {
 function placeOrMoveGoogleMarker(lat, lng) {
     if (!markerInstance) {
         markerInstance = new window.google.maps.Marker({
-            position: { lat, lng },
-            map: mapInstance,
-            draggable: true,
+            position: { lat, lng }, map: mapInstance, draggable: true,
         });
         markerInstance.addListener('dragend', () => {
             const pos = markerInstance.getPosition();
@@ -465,10 +1112,7 @@ function setMapZoom(zoom) {
     mapInstance.setZoom(zoom);
 }
 
-// ─── Actions ─────────────────────────────────────────────────────────────────
-
-// Prevents the lat/lng watcher from redundantly moving the marker when the
-// update already originated from a map event (drag, click).
+// ─── Single-mode actions ───────────────────────────────────────────────────────
 let _fromMapInteraction = false;
 
 async function onMapPick(lat, lng) {
@@ -480,48 +1124,35 @@ async function onMapPick(lat, lng) {
     try {
         let address = null;
         if (mapProvider.value === 'osm') {
-            const data = await postCp('google-maps/reverse-geocode', { lat, lng, provider: 'osm' });
+            const data = await postCp('google-maps/reverse-geocode', { lat, lng, provider: 'osm' }, _axios);
             if (data.success) address = data.result.address;
         } else {
-            // Use the JS API Geocoder — works with browser-restricted API keys
             address = await googleReverseGeocode(lat, lng);
         }
-        if (address) {
-            update({ ...internalValue.value, lat, lng, address });
-        }
-    } catch { /* reverse geocode failure is non-fatal */ }
+        if (address) update({ ...internalValue.value, lat, lng, address });
+    } catch {}
 }
 
 async function search() {
     const q = searchQuery.value.trim();
     if (!q || isSearching.value) return;
-
     isSearching.value = true;
     searchError.value = '';
 
     try {
         let lat, lng, address;
-
         if (mapProvider.value === 'osm') {
-            const data = await postCp('google-maps/geocode', { address: q, provider: 'osm' });
-            if (!data.success) {
-                searchError.value = data.message || 'Location not found.';
-                return;
-            }
+            const data = await postCp('google-maps/geocode', { address: q, provider: 'osm' }, _axios);
+            if (!data.success) { searchError.value = data.message || 'Location not found.'; return; }
             ({ lat, lng, address } = data.result);
         } else {
-            // Use the JS API Geocoder — works with browser-restricted API keys
             const result = await googleGeocode(q);
-            if (!result) {
-                searchError.value = 'No results found.';
-                return;
-            }
+            if (!result) { searchError.value = 'No results found.'; return; }
             ({ lat, lng, address } = result);
         }
 
         const currentZoom = Math.max(internalValue.value.zoom || defaultZoom.value, 12);
         update({ ...internalValue.value, lat, lng, address, zoom: currentZoom });
-
         await nextTick();
 
         if (mapProvider.value === 'osm' && mapInstance) {
@@ -539,73 +1170,46 @@ async function search() {
     }
 }
 
-// ─── Client-side Google geocoding (uses Maps JS API — respects browser-restricted keys) ──
+// ─── Multi-mode search ─────────────────────────────────────────────────────────
+async function searchMarker(markerId, query) {
+    const q = (query || '').trim();
+    if (!q || markerSearching.value[markerId]) return;
 
-function googleGeocode(address) {
-    return new Promise((resolve, reject) => {
-        if (!window.google?.maps?.Geocoder) {
-            reject(new Error('Google Maps is not loaded.'));
-            return;
-        }
-        const geocoder = new window.google.maps.Geocoder();
-        geocoder.geocode({ address }, (results, status) => {
-            if (status === 'OK' && results?.length) {
-                resolve({
-                    lat:     results[0].geometry.location.lat(),
-                    lng:     results[0].geometry.location.lng(),
-                    address: results[0].formatted_address,
-                });
-            } else if (status === 'ZERO_RESULTS') {
-                resolve(null);
-            } else {
-                reject(new Error(`Geocoding failed (${status}).`));
+    markerSearching.value = { ...markerSearching.value, [markerId]: true };
+    markerSearchErrors.value = { ...markerSearchErrors.value, [markerId]: '' };
+
+    try {
+        let lat, lng, address;
+        if (mapProvider.value === 'osm') {
+            const data = await postCp('google-maps/geocode', { address: q, provider: 'osm' }, _axios);
+            if (!data.success) {
+                markerSearchErrors.value = { ...markerSearchErrors.value, [markerId]: data.message || 'Location not found.' };
+                return;
             }
-        });
-    });
-}
+            ({ lat, lng, address } = data.result);
+        } else {
+            const result = await googleGeocode(q);
+            if (!result) {
+                markerSearchErrors.value = { ...markerSearchErrors.value, [markerId]: 'No results found.' };
+                return;
+            }
+            ({ lat, lng, address } = result);
+        }
 
-function googleReverseGeocode(lat, lng) {
-    return new Promise((resolve) => {
-        if (!window.google?.maps?.Geocoder) { resolve(null); return; }
-        const geocoder = new window.google.maps.Geocoder();
-        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-            resolve(status === 'OK' && results?.length ? results[0].formatted_address : null);
-        });
-    });
-}
-
-async function postCp(path, body) {
-    // In Vue 2.7, getCurrentInstance().proxy holds the component's `this` — which has $axios.
-    // (Vue 3's appContext.config.globalProperties path doesn't exist in Vue 2.7)
-    const $axios = _instance?.proxy?.$axios;
-    if ($axios) {
-        const resp = await $axios.post(`/cp/${path}`, body);
-        return resp.data;
+        markersData.value = markersData.value.map(m =>
+            m._id === markerId ? { ...m, lat, lng, address } : m
+        );
+        emitMulti();
+        await nextTick();
+        refreshMultiMapMarkers();
+    } catch (err) {
+        markerSearchErrors.value = { ...markerSearchErrors.value, [markerId]: err?.message || 'Search failed.' };
+    } finally {
+        markerSearching.value = { ...markerSearching.value, [markerId]: false };
     }
-    // Fetch fallback — used if $axios is unavailable for any reason
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
-    const resp = await fetch(`/cp/${path}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': csrf,
-            'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify(body),
-    });
-    if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(`HTTP ${resp.status}: ${text.slice(0, 200)}`);
-    }
-    return resp.json();
 }
 
-// ─── Asset picker ─────────────────────────────────────────────────────────────
-
-// (handled by onMarkerAssetUpdate above)
-
-// ─── Coordinate inputs ────────────────────────────────────────────────────────
-
+// ─── Coord inputs (single) ─────────────────────────────────────────────────────
 function updateCoord(field, rawValue) {
     const num = field === 'zoom' ? parseInt(rawValue) : parseFloat(rawValue);
     if (isNaN(num)) return;
@@ -613,24 +1217,22 @@ function updateCoord(field, rawValue) {
 }
 
 function clearLocation() {
+    if (!window.confirm('Are you sure you want to clear this location?')) return;
     update({
         lat: null, lng: null, address: '', zoom: defaultZoom.value,
         infobox_title: '', infobox_content: '',
-        marker_icon_url: '', marker_icon_width: 0, marker_icon_height: 0,
-        marker_asset_id: '',
+        marker_icon_url: '', marker_icon_width: 0, marker_icon_height: 0, marker_asset_id: '',
     });
     markerAssetIds.value = [];
     searchQuery.value = '';
     searchError.value = '';
 }
 
-// ─── Watchers ─────────────────────────────────────────────────────────────────
-
+// ─── Watchers (single only) ────────────────────────────────────────────────────
 watch(
     () => [internalValue.value.lat, internalValue.value.lng],
     ([lat, lng]) => {
-        if (!mapReady.value || lat == null || lng == null) return;
-        if (_fromMapInteraction) return; // marker is already at this position
+        if (!mapReady.value || lat == null || lng == null || _fromMapInteraction || isMulti.value) return;
         moveMarker(lat, lng);
     }
 );
@@ -638,142 +1240,89 @@ watch(
 watch(
     () => internalValue.value.zoom,
     zoom => {
-        if (!mapReady.value || !zoom) return;
+        if (!mapReady.value || !zoom || isMulti.value) return;
         setMapZoom(zoom);
     }
 );
 
-// ─── Lifecycle ────────────────────────────────────────────────────────────────
+// ─── Lifecycle ─────────────────────────────────────────────────────────────────
 
-onMounted(() => initMap());
+let _mapObserver = null;
+
+function tryInitMapWhenVisible(el) {
+    if (!el || mapReady.value) return;
+    // If the element already has dimensions, init immediately
+    if (el.offsetWidth > 0 && el.offsetHeight > 0) {
+        initMap();
+        return;
+    }
+    // Otherwise wait until it becomes visible (handles two-column layouts,
+    // accordions, tabs, and any lazy container in Statamic CP)
+    if (_mapObserver) _mapObserver.disconnect();
+    _mapObserver = new IntersectionObserver(
+        (entries) => {
+            const entry = entries[0];
+            if (entry.isIntersecting && entry.target.offsetWidth > 0 && !mapReady.value) {
+                _mapObserver.disconnect();
+                _mapObserver = null;
+                initMap();
+            }
+        },
+        { threshold: 0 }
+    );
+    _mapObserver.observe(el);
+}
+
+// Watch the mapEl ref so the map initialises whenever the element actually
+// enters the DOM (handles Statamic accordions / tabs / lazy containers where
+// mapEl.value is null at onMounted time).
+watch(mapEl, async (el) => {
+    if (el && !mapReady.value) {
+        await nextTick();
+        tryInitMapWhenVisible(el);
+    }
+});
+
+onMounted(async () => {
+    await nextTick();
+    tryInitMapWhenVisible(mapEl.value);
+});
 
 onBeforeUnmount(() => {
+    if (_mapObserver) { _mapObserver.disconnect(); _mapObserver = null; }
+    // Clean up per-marker mini-maps
+    Object.keys(markerMapInstances).forEach(id => destroyMarkerMiniMap(id));
+    markerMapRefs = {};
+
+    if (markerClustererInstance) {
+        try {
+            markerClustererInstance.clearMarkers();
+            markerClustererInstance.setMap(null);
+        } catch (err) {
+            console.warn('[GoogleMapsFieldtype] clusterer teardown failed:', err?.message);
+        }
+        markerClustererInstance = null;
+    }
+    multiMarkerInstances.forEach(m => {
+        try {
+            if (mapProvider.value === 'osm') m.remove();
+            else m.setMap(null);
+        } catch (err) {
+            console.warn('[GoogleMapsFieldtype] marker teardown failed:', err?.message);
+        }
+    });
+    multiMarkerInstances = [];
     if (mapProvider.value === 'osm' && mapInstance) {
-        mapInstance.remove();
+        try { mapInstance.remove(); }
+        catch (err) { console.warn('[GoogleMapsFieldtype] map teardown failed:', err?.message); }
     }
     mapInstance = null;
     markerInstance = null;
 });
 </script>
 
-<style scoped>
-.gmf-pin-badge {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    border-radius: 9999px;
-    background: white;
-    border: 1px solid rgb(209 213 219);
-    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    color: rgb(75 85 99);
-}
-
-:is(.dark .gmf-pin-badge) {
-    background: rgb(31 41 55);
-    border-color: rgb(75 85 99);
-    color: rgb(209 213 219);
-}
-
-.gmf-field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-.gmf-input {
-    width: 100%;
-    padding: 0.375rem 0.5rem;
-    font-size: 0.875rem;
-    color: rgb(17 24 39);
-    background: white;
-    border: 1px solid rgb(209 213 219);
-    border-radius: 0.375rem;
-    outline: none;
-    transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-.gmf-input:focus {
-    border-color: rgb(139 92 246);
-    box-shadow: 0 0 0 3px rgb(139 92 246 / 0.15);
-}
-
-.gmf-input:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-:is(.dark .gmf-input) {
-    color: rgb(243 244 246);
-    background: rgb(17 24 39);
-    border-color: rgb(75 85 99);
-}
-
-:is(.dark .gmf-input):focus {
-    border-color: rgb(139 92 246);
-}
-
-.gmf-map {
-    width: 100%;
-}
-
-.gmf-search-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: white;
-    background: rgb(139 92 246);
-    border: none;
-    border-radius: 0.375rem;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.15s;
-    flex-shrink: 0;
-}
-
-.gmf-search-btn:hover:not(:disabled) {
-    background: rgb(124 58 237);
-}
-
-.gmf-search-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.gmf-clear-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    font-size: 0.75rem;
-    color: rgb(156 163 175);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 0.25rem 0.375rem;
-    border-radius: 0.375rem;
-    transition: color 0.15s, background 0.15s;
-}
-
-.gmf-clear-btn:hover {
-    color: rgb(239 68 68);
-    background: rgb(254 226 226);
-}
-
-:is(.dark .gmf-clear-btn):hover {
-    color: rgb(252 165 165);
-    background: rgb(127 29 29 / 0.3);
-}
-
-@keyframes gmf-spin {
-    to { transform: rotate(360deg); }
-}
-
-.gmf-spin {
-    animation: gmf-spin 0.8s linear infinite;
-}
-</style>
+<!--
+    Styles for this component and its sub-components (MarkerListRow, BulkEditPanel)
+    live in resources/css/cp.css (gmf-* prefix). Scoped styles cannot reach child
+    component elements, so all styles are global with the gmf- namespace.
+-->

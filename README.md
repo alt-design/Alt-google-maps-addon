@@ -5,14 +5,33 @@ A location picker fieldtype for [Statamic CMS](https://statamic.com) with suppor
 ## Features
 
 - **`google_maps` fieldtype** — interactive map with search bar, click-to-place pin, drag-to-move marker, and editable coordinate inputs (Lat/Lng/Zoom); shows address or coordinates in the CP header
+- **Multiple markers** — enable `enable_multiple` on a field to add, reorder, and delete multiple pins from a single field; each pin can have its own address, infobox, and custom icon
+- **Marker clustering** — enable `enable_clustering` to group nearby markers into interactive clusters on the frontend; powered by [`@googlemaps/markerclusterer`](https://github.com/googlemaps/js-markerclusterer) (Google) and [`leaflet.markercluster`](https://github.com/Leaflet/Leaflet.markercluster) (OSM)
 - **Dual map provider** — choose **Google Maps** (requires API key) or **OpenStreetMap / Leaflet** (no API key needed)
 - **Infobox / popup** — configurable marker popup (title + HTML body); opens on marker click; powered by [Snazzy Info Window](https://snazzymaps.com/about/info-window) (Google) and Leaflet's native `bindPopup` (OSM)
 - **Map styles** — apply custom map styles from [snazzymaps.com](https://snazzymaps.com) (Google Maps only); paste the style JSON in the CP or per-fieldset
 - **Custom marker icon** — replace the default pin with any PNG/SVG image; override per-entry (with built-in asset browser picker), per-field, via CP Settings, or via `.env`
 - **CP Settings page** — configure default coordinates, map provider, infobox defaults, map style, and marker icon via Tools → Alt Google Maps
-- **Augmented data** — automatically generates `google_maps_url`, `directions_url`, and `static_map_url` for use in Antlers templates
-- **Adapter pattern** — frontend rendering uses a shared `window.AltMap` adapter; Leaflet, Google Maps SDK, and Snazzy Info Window are all lazy-loaded from CDN only when needed
+- **Augmented data** — automatically generates `google_maps_url`, `directions_url`, `static_map_url`, `markers`, `markers_json`, and `enable_clustering` for use in Antlers templates
+- **Adapter pattern** — frontend rendering uses a shared `window.AltMap` adapter; Leaflet, Google Maps SDK, MarkerClusterer, and Snazzy Info Window are all lazy-loaded from CDN only when needed
+- **Antlers tags** — `{{ google_map }}`, `{{ google_map:multi }}`, and `{{ google_map:static }}` for rendering maps directly in templates without writing JS
 - **`.env` configuration** — API key, map provider, and defaults via environment variables
+
+## Security
+
+> **⚠️ Required for the Google Maps provider.** The Maps JavaScript API requires the API key to be embedded in the `<script src=…>` URL — there is no way to proxy this server-side. **You must restrict the key in Google Cloud Console**, otherwise anyone can copy it from your site's HTML and use your quota.
+
+In [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
+
+1. **Application restrictions** — set **HTTP referrers** to your production domain(s), e.g. `https://example.com/*`, `https://*.example.com/*`. For local development add `http://localhost:*/*`.
+2. **API restrictions** — restrict the key to **Maps JavaScript API** and **Geocoding API** only. Do **not** leave it unrestricted.
+3. Use a **separate key** for staging/production and rotate if a key was ever published unrestricted.
+
+The addon also enforces, server-side:
+
+- **Nominatim ToS compliance** — geocoding requests are proxied through the CP (never browser-direct), cached for 24h, and throttled to 1 request/sec across the whole app.
+- **HTML sanitization on `infobox_content`** — `<script>`, `<style>`, `<iframe>`, `<object>`, `<embed>`, `on*=` event handlers, and `javascript:` / `data:` URLs are stripped on save.
+- **HTTP timeouts and retries** on Google Geocoding (10s timeout, 2 retries) so a slow upstream cannot stall the CP.
 
 ## Requirements
 
@@ -71,21 +90,38 @@ You can also configure these settings via the CP under **Tools → Alt Google Ma
 
 After publishing, `config/statamic-google-maps.php` exposes additional options:
 
-| Key               | Default     | Description                                                                              |
-| ----------------- | ----------- | ---------------------------------------------------------------------------------------- |
-| `api_key`         | `''`        | Google Maps API key (reads `GOOGLE_MAPS_API_KEY`)                                        |
-| `map_provider`    | `'google'`  | `'google'` or `'osm'` (reads `GOOGLE_MAPS_PROVIDER`)                                     |
-| `defaults.lat`    | `null`      | Default latitude                                                                         |
-| `defaults.lng`    | `null`      | Default longitude                                                                        |
-| `defaults.zoom`   | `13`        | Default zoom level                                                                       |
-| `map_height`      | `420`       | Map height in pixels (CP fieldtype default)                                              |
-| `map_type`        | `'roadmap'` | Google Maps type: `'roadmap'`, `'satellite'`, `'terrain'`, `'hybrid'`                    |
-| `infobox_title`      | `''`        | Default popup title (reads `GOOGLE_MAPS_INFOBOX_TITLE`); overridden by CP Settings          |
-| `infobox_content`    | `''`        | Default popup body HTML (reads `GOOGLE_MAPS_INFOBOX_CONTENT`); overridden by CP Settings    |
-| `map_style`          | `''`        | Snazzy Maps style JSON for Google Maps; overridden by CP Settings                           |
-| `marker_icon_url`    | `''`        | URL to a custom marker image (PNG/SVG, reads `GOOGLE_MAPS_MARKER_ICON`); empty = default pin |
-| `marker_icon_width`  | `40`        | Marker icon width in pixels (reads `GOOGLE_MAPS_MARKER_WIDTH`)                              |
-| `marker_icon_height` | `40`        | Marker icon height in pixels (reads `GOOGLE_MAPS_MARKER_HEIGHT`)                            |
+**General**
+
+| Key            | Default     | Description                                                           |
+| -------------- | ----------- | --------------------------------------------------------------------- |
+| `api_key`      | `''`        | Google Maps API key (reads `GOOGLE_MAPS_API_KEY`)                     |
+| `map_provider` | `'google'`  | `'google'` or `'osm'` (reads `GOOGLE_MAPS_PROVIDER`)                 |
+| `map_height`   | `420`       | Default map height in pixels                                          |
+| `map_type`     | `'roadmap'` | Google Maps type: `'roadmap'`, `'satellite'`, `'terrain'`, `'hybrid'` |
+
+**Default coordinates**
+
+| Key             | Default | Description                              |
+| --------------- | ------- | ---------------------------------------- |
+| `defaults.lat`  | `null`  | Default latitude                         |
+| `defaults.lng`  | `null`  | Default longitude                        |
+| `defaults.zoom` | `13`    | Default zoom level                       |
+
+**Appearance**
+
+| Key           | Default | Description                                              |
+| ------------- | ------- | -------------------------------------------------------- |
+| `map_style`   | `''`    | Snazzy Maps style JSON for Google Maps                   |
+| `infobox_title`   | `''`  | Default popup title (reads `GOOGLE_MAPS_INFOBOX_TITLE`)   |
+| `infobox_content` | `''`  | Default popup body HTML (reads `GOOGLE_MAPS_INFOBOX_CONTENT`) |
+
+**Marker icon**
+
+| Key                  | Default | Description                                                           |
+| -------------------- | ------- | --------------------------------------------------------------------- |
+| `marker_icon_url`    | `''`    | Custom marker image URL (reads `GOOGLE_MAPS_MARKER_ICON`); empty = default pin |
+| `marker_icon_width`  | `40`    | Marker icon width in pixels (reads `GOOGLE_MAPS_MARKER_WIDTH`)        |
+| `marker_icon_height` | `40`    | Marker icon height in pixels (reads `GOOGLE_MAPS_MARKER_HEIGHT`)      |
 
 ## Override Hierarchy
 
@@ -154,19 +190,38 @@ Both providers support the same fieldtype interactions:
 
 All field-level config options are optional and override the global defaults for that specific field:
 
-| Option                    | Type     | Default          | Description                                                                  |
-| ------------------------- | -------- | ---------------- | ---------------------------------------------------------------------------- |
-| `map_provider`            | select   | _(site default)_ | `'google'` or `'osm'` — overrides the global setting for this field only     |
-| `default_lat`             | float    | _(site default)_ | Starting latitude for new entries — blank to inherit from site default       |
-| `default_lng`             | float    | _(site default)_ | Starting longitude for new entries — blank to inherit from site default      |
-| `default_zoom`            | integer  | _(site default)_ | Initial zoom level (1 = world, 20 = building) — blank = site default         |
-| `map_height`              | integer  | `420`            | Map height in pixels                                                         |
-| `default_infobox_title`   | text     | _(site default)_ | Popup title for all entries using this field — overrides CP/config default    |
-| `default_infobox_content` | textarea | _(site default)_ | Popup body HTML — overrides CP/config default for this field only             |
-| `map_style`               | textarea | _(site default)_ | Snazzy Maps style JSON (Google only) — overrides global style for this field  |
-| `marker_icon_url`         | text     | _(site default)_ | Custom marker image URL — overrides CP/config default for this field only     |
-| `marker_icon_width`       | integer  | `40`             | Marker icon width in pixels                                                   |
-| `marker_icon_height`      | integer  | `40`             | Marker icon height in pixels                                                  |
+**Multiple markers**
+
+| Option              | Type   | Default | Description                                             |
+| ------------------- | ------ | ------- | ------------------------------------------------------- |
+| `enable_multiple`   | toggle | `false` | Allow adding multiple markers to this field             |
+| `enable_clustering` | toggle | `false` | Group nearby markers into clusters (requires `enable_multiple`) |
+
+**Map**
+
+| Option          | Type    | Default          | Description                                                          |
+| --------------- | ------- | ---------------- | -------------------------------------------------------------------- |
+| `map_provider`  | select  | _(site default)_ | `'google'` or `'osm'` — overrides the global setting for this field |
+| `map_height`    | integer | `420`            | Map height in pixels                                                 |
+| `default_lat`   | float   | _(site default)_ | Starting latitude for new entries                                    |
+| `default_lng`   | float   | _(site default)_ | Starting longitude for new entries                                   |
+| `default_zoom`  | integer | _(site default)_ | Initial zoom level (1 = world, 20 = building)                        |
+| `map_style`     | textarea | _(site default)_ | Snazzy Maps style JSON (Google only)                                |
+
+**Infobox**
+
+| Option                    | Type     | Default          | Description                                                    |
+| ------------------------- | -------- | ---------------- | -------------------------------------------------------------- |
+| `default_infobox_title`   | text     | _(site default)_ | Popup title for all entries using this field                   |
+| `default_infobox_content` | textarea | _(site default)_ | Popup body HTML                                                |
+
+**Marker icon**
+
+| Option               | Type    | Default          | Description                                          |
+| -------------------- | ------- | ---------------- | ---------------------------------------------------- |
+| `marker_icon_url`    | text    | _(site default)_ | Custom marker image URL                              |
+| `marker_icon_width`  | integer | `40`             | Marker icon width in pixels                          |
+| `marker_icon_height` | integer | `40`             | Marker icon height in pixels                         |
 
 Example with custom options:
 
@@ -184,14 +239,41 @@ Example with custom options:
 
 ### Frontend Adapter (`window.AltMap`)
 
-The addon ships a lightweight `window.AltMap` adapter partial that handles lazy-loading of Leaflet, Google Maps SDK, and Snazzy Info Window from CDN — only when needed, and only once per page even if multiple maps are present. The recommended pattern for all map templates is:
+The addon ships a lightweight `window.AltMap` adapter partial that handles lazy-loading of Leaflet, Google Maps SDK, MarkerClusterer, and Snazzy Info Window from CDN — only when needed, and only once per page even if multiple maps are present. The recommended pattern for all map templates is:
 
 1. Include the adapter partial once (the guard `if (!window.AltMap)` makes it safe to include multiple times)
 2. Add a `<div>` with a unique `id` and `data-style` (HTML-encoded JSON)
 3. Add a hidden popup `<div>` for the infobox HTML (optional)
-4. Call `AltMap.initLeaflet(...)` or `AltMap.initGoogle(...)` depending on the resolved provider
+4. Call `AltMap.initLeaflet(...)` or `AltMap.initGoogle(...)` for single-marker, or `AltMap.initLeafletMulti(...)` / `AltMap.initGoogleMulti(...)` for multiple markers
 
 > **Important — `| entities` on `data-style`:** Map style JSON contains double-quotes. When written into an HTML attribute, those quotes must be HTML-encoded (`"` → `&quot;`) using Antlers' `| entities` modifier. Without it the browser truncates the attribute at the first `"` and `JSON.parse` silently receives an empty or malformed string, so the style has no effect.
+
+### Antlers Tags
+
+The addon also provides ready-made Antlers tags that emit the full map HTML and JS without needing the adapter partial directly:
+
+| Tag                       | Description                                                   |
+| ------------------------- | ------------------------------------------------------------- |
+| `{{ google_map }}`        | Single-marker map from explicit `lat`/`lng` params            |
+| `{{ google_map:multi }}`  | Multi-marker map from a `markers_json` string; supports clustering |
+| `{{ google_map:static }}` | Returns a static map image URL (Google only)                  |
+
+#### `{{ google_map }}` — single marker
+
+```antlers
+{{ google_map
+    :lat="location:lat"
+    :lng="location:lng"
+    :zoom="location:zoom"
+    height="400"
+}}
+```
+
+#### `{{ google_map:static }}` — static image URL
+
+```antlers
+<img src="{{ google_map:static :lat='location:lat' :lng='location:lng' :zoom='location:zoom' width='600' height='300' }}" alt="Map">
+```
 
 ### In Antlers Templates (standalone field)
 
@@ -308,22 +390,126 @@ form_row:
 
 ### Available variables
 
-| Variable          | Type   | Description                                                                                                                                      |
-| ----------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `lat`             | float  | Latitude                                                                                                                                         |
-| `lng`             | float  | Longitude                                                                                                                                        |
-| `zoom`            | int    | Zoom level (1–21)                                                                                                                                |
-| `address`         | string | Address string (if set via search, click, or drag)                                                                                               |
-| `map_provider`    | string | Resolved provider for this field: `'google'` or `'osm'` (per-field → site default)                                                              |
-| `map_height`      | int    | Resolved map height in pixels (per-field → site default)                                                                                         |
-| `infobox_title`   | string | Resolved popup title (per-entry → per-field → site default)                                                                                      |
-| `infobox_content` | string | Resolved popup body HTML (per-entry → per-field → site default)                                                                                  |
-| `map_style`       | string | Resolved Snazzy Maps style JSON (per-field → site default; Google only)                                                                          |
-| `marker_icon`      | array\|null | Resolved marker icon as `{ url, width, height }`, or `null` if not set. Access as `{{ marker_icon:url }}`, `{{ marker_icon:width }}`, `{{ marker_icon:height }}`. |
-| `marker_icon_json` | string      | Same as `marker_icon` but pre-encoded as a JSON string — use in `data-marker` HTML attributes with `\| entities`. Empty string when no icon is set. |
-| `google_maps_url` | string | Link to Google Maps at this location                                                                                                             |
-| `directions_url`  | string | Link to Google Maps directions to this location                                                                                                  |
-| `static_map_url`  | string | Static map image URL (Google provider only; requires API key)                                                                                    |
+#### Single-marker mode
+
+| Variable           | Type        | Description                                                                    |
+| ------------------ | ----------- | ------------------------------------------------------------------------------ |
+| `lat`              | float       | Latitude                                                                       |
+| `lng`              | float       | Longitude                                                                      |
+| `zoom`             | int         | Zoom level (1–21)                                                              |
+| `address`          | string      | Address string (if set via search, click, or drag)                             |
+| `map_provider`     | string      | Resolved provider: `'google'` or `'osm'`                                       |
+| `map_height`       | int         | Resolved map height in pixels                                                  |
+| `infobox_title`    | string      | Resolved popup title (per-entry → per-field → site default)                    |
+| `infobox_content`  | string      | Resolved popup body HTML (per-entry → per-field → site default)                |
+| `map_style`        | string      | Resolved Snazzy Maps style JSON (Google only)                                  |
+| `marker_icon`      | array\|null | Resolved icon as `{ url, width, height }`, or `null`. Access as `{{ marker_icon:url }}` etc. |
+| `marker_icon_json` | string      | `marker_icon` pre-encoded as JSON — use in `data-marker` with `\| entities`    |
+| `google_maps_url`  | string      | Link to Google Maps at this location                                           |
+| `directions_url`   | string      | Link to Google Maps directions to this location                                |
+| `static_map_url`   | string      | Static map image URL (Google only; requires API key)                           |
+
+#### Multiple-markers mode
+
+When `enable_multiple: true`, the field augments to an object with these top-level variables plus a `markers` array. The first marker's values are also surfaced at the top level for backward compatibility.
+
+| Variable            | Type        | Description                                                                       |
+| ------------------- | ----------- | --------------------------------------------------------------------------------- |
+| `lat`               | float       | Latitude of the first marker                                                      |
+| `lng`               | float       | Longitude of the first marker                                                     |
+| `address`           | string      | Address of the first marker                                                       |
+| `zoom`              | int\|null   | Manual zoom override (`null` = auto-fit all markers)                              |
+| `map_provider`      | string      | Resolved provider: `'google'` or `'osm'`                                          |
+| `map_height`        | int         | Resolved map height in pixels                                                     |
+| `map_style`         | string      | Resolved Snazzy Maps style JSON (Google only)                                     |
+| `markers`           | array       | Array of marker objects — each has `lat`, `lng`, `address`, `infobox_title`, `infobox_content`, `marker_icon`, `marker_icon_json` |
+| `markers_json`      | string      | `markers` pre-encoded as JSON — use with `AltMap.initGoogleMulti` or `{{ google_map:multi }}` |
+| `enable_clustering` | bool        | Whether marker clustering is enabled for this field                               |
+
+## Multiple Markers
+
+Enable `enable_multiple: true` on any field to turn it into a multi-marker map. In this mode the CP shows an "Add Marker" button and a list of pins, each with their own address, infobox, and optional custom icon. A zoom override input is also available to lock the frontend zoom instead of auto-fitting all markers.
+
+### Blueprint config
+
+```yaml
+- handle: location
+  field:
+      type: google_maps
+      display: Locations
+      enable_multiple: true
+      enable_clustering: true   # optional — groups nearby pins on the frontend
+```
+
+### Marker Clustering
+
+When `enable_clustering: true` the frontend automatically groups nearby markers into a single circle showing the count. Zooming in splits the cluster into individual pins.
+
+- **Google Maps** — uses [`@googlemaps/markerclusterer`](https://github.com/googlemaps/js-markerclusterer), loaded on demand from `unpkg.com`
+- **OSM / Leaflet** — uses [`leaflet.markercluster`](https://github.com/Leaflet/Leaflet.markercluster), loaded on demand from `unpkg.com`
+
+Clustering only activates when two or more markers are close enough at the current zoom level. If all your markers are in different cities, zoom out until they're close enough to trigger a cluster.
+
+### In Antlers templates (multi-marker)
+
+#### Using the `window.AltMap` adapter (Replicator / page-builder set)
+
+```antlers
+{{ if google_maps_field:markers_json }}
+    {{ partial src="_parts/map-adapter" }}
+
+    <div
+        id="gmap-{{ id }}"
+        data-style="{{ google_maps_field:map_style | entities }}"
+        data-markers="{{ google_maps_field:markers_json | entities }}"
+        style="height: {{ google_maps_field:map_height ?? 420 }}px; width: 100%; border-radius: 8px; position: relative; isolation: isolate;"
+    ></div>
+
+    {{ if google_maps_field:map_provider == 'osm' }}
+    <script>
+    (function() {
+        var el = document.getElementById('gmap-{{ id }}');
+        AltMap.initLeafletMulti(el, el.dataset.markers, {{ google_maps_field:zoom ?? 'null' }}, {{ google_maps_field:enable_clustering ? 'true' : 'false' }});
+    })();
+    </script>
+    {{ else }}
+    <script>
+    (function() {
+        var el = document.getElementById('gmap-{{ id }}');
+        AltMap.initGoogleMulti(el, el.dataset.markers, '{{ config:statamic-google-maps:api_key }}', '{{ config:statamic-google-maps:map_type ?? "roadmap" }}', {{ google_maps_field:zoom ?? 'null' }}, {{ google_maps_field:enable_clustering ? 'true' : 'false' }});
+    })();
+    </script>
+    {{ /if }}
+{{ /if }}
+```
+
+> **Note — `| entities` on `data-markers`:** `markers_json` contains double-quotes. Always use `| entities` when writing it into an HTML attribute.
+
+#### Using the `{{ google_map:multi }}` Antlers tag (standalone)
+
+The addon ships a `{{ google_map:multi }}` tag that renders the full map HTML + JS in one line, with no need to include the adapter partial manually:
+
+```antlers
+{{ google_map:multi
+    :markers="location:markers_json"
+    :clustering="location:enable_clustering"
+    :zoom="location:zoom"
+    height="400"
+}}
+```
+
+| Parameter      | Required | Default         | Description                                                              |
+| -------------- | -------- | --------------- | ------------------------------------------------------------------------ |
+| `markers`      | yes      | —               | JSON string of markers — use `:markers="location:markers_json"`          |
+| `clustering`   | no       | `false`         | Enable clustering — use `:clustering="location:enable_clustering"`       |
+| `zoom`         | no       | auto-fit        | Fixed zoom level; omit to fit all markers                                |
+| `default_zoom` | no       | site default    | Zoom used when there is only one marker                                  |
+| `height`       | no       | `420`           | Map height in pixels                                                     |
+| `width`        | no       | `100%`          | Map width (CSS value)                                                    |
+| `id`           | no       | auto-generated  | HTML `id` attribute for the map container                                |
+| `provider`     | no       | site default    | `'google'` or `'osm'`                                                    |
+| `key`          | no       | from config     | Google Maps API key (reads config automatically)                         |
+| `map_type`     | no       | `'roadmap'`     | `'roadmap'`, `'satellite'`, `'terrain'`, or `'hybrid'`                   |
 
 ## Infobox / Popup
 
@@ -417,10 +603,10 @@ When an asset is selected or uploaded, the field automatically resolves its publ
 
 After augmentation, two variables are available:
 
-| Variable | Type | Value |
-|---|---|---|
-| `marker_icon` | array\|null | `{ url, width, height }` or `null` if not set |
-| `marker_icon_json` | string | Pre-encoded JSON string — or `''` if not set |
+| Variable           | Type        | Description                                           |
+| ------------------ | ----------- | ----------------------------------------------------- |
+| `marker_icon`      | array\|null | `{ url, width, height }` or `null` if not set         |
+| `marker_icon_json` | string      | Pre-encoded JSON string — or `''` if not set          |
 
 Use `marker_icon` for direct property access in Antlers:
 
@@ -477,6 +663,58 @@ The `map_style` setting accepts a **style JSON array** from [snazzymaps.com](htt
 There is no per-entry style override — style is a fieldset-level concern.
 
 > **Note:** If `map_style` is empty, no `styles:` option is passed to Google Maps and the default map style is used.
+
+## Testing
+
+The addon ships with a [Pest](https://pestphp.com) test suite covering the geocoding controller, the override hierarchy (per-field → CP settings → `.env` → config file), the augmented variables, and the settings storage layer.
+
+### Running the suite
+
+```bash
+cd addons/alt-design/alt-google-maps-addon
+composer install
+./vendor/bin/pest
+```
+
+### Useful options
+
+```bash
+./vendor/bin/pest --filter "OSM"   # only tests matching "OSM"
+./vendor/bin/pest --parallel       # run in parallel
+./vendor/bin/pest --coverage       # with code coverage report
+```
+
+### Test layout
+
+| File                                 | Purpose                                                                                  |
+| ------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `tests/TestCase.php`                 | Base test case extending `Statamic\Testing\AddonTestCase`                                |
+| `tests/SettingsTestCase.php`         | Variant that seeds `google-maps-settings.json` before the addon boots                   |
+| `tests/Pest.php`                     | Per-file `uses()` declarations (no global binding)                                       |
+| `tests/GeocodingControllerTest.php`  | Google + OSM geocode/reverse-geocode, HTTP errors, User-Agent header, request validation |
+| `tests/ProviderHierarchyTest.php`    | Provider override hierarchy, augmented variables, `google_map` Antlers tag rendering     |
+| `tests/SettingsHierarchyTest.php`    | CP Settings page → runtime config propagation (provider, lat/lng/zoom)                   |
+
+### Writing new tests
+
+Most tests use `it('describes behaviour', function () { ... })` with `expect()` assertions. Network calls are stubbed with `Http::fake()`. Example:
+
+```php
+use AltDesign\AltGoogleMapsAddon\Tests\TestCase;
+
+uses(TestCase::class);
+
+it('falls back to global provider when per-field is blank', function () {
+    config(['statamic-google-maps.map_provider' => 'osm']);
+
+    $ft = (new GoogleMapsFieldtype)->setField(new \Statamic\Fields\Field('map', [
+        'type'         => 'google_maps',
+        'map_provider' => '',
+    ]));
+
+    expect($ft->augment(['lat' => 1, 'lng' => 2, 'zoom' => 10])['map_provider'])->toBe('osm');
+});
+```
 
 ## License
 

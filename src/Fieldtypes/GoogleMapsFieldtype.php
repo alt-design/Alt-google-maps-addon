@@ -41,7 +41,8 @@ class GoogleMapsFieldtype extends Fieldtype
         ];
     }
 
-    public function defaultValue()
+    // ── Single-marker default (used when enable_multiple is false) ───────────────
+    private function singleDefault(): array
     {
         return [
             'lat'               => $this->config('default_lat') ?? config('statamic-google-maps.defaults.lat'),
@@ -57,11 +58,49 @@ class GoogleMapsFieldtype extends Fieldtype
         ];
     }
 
+    // ── Multi-marker default ──────────────────────────────────────────────────
+    private function multiDefault(): array
+    {
+        return [
+            'zoom_override' => null,
+            'markers'       => [],
+        ];
+    }
+
+    // ── Empty marker row ──────────────────────────────────────────────────────
+    private function emptyMarker(): array
+    {
+        return [
+            'lat'               => null,
+            'lng'               => null,
+            'address'           => '',
+            'zoom'              => $this->config('default_zoom') ?? config('statamic-google-maps.defaults.zoom', 13),
+            'infobox_title'     => '',
+            'infobox_content'   => '',
+            'marker_icon_url'   => '',
+            'marker_icon_width' => 0,
+            'marker_icon_height'=> 0,
+            'marker_asset_id'   => '',
+        ];
+    }
+
+    public function defaultValue()
+    {
+        return $this->config('enable_multiple') ? $this->multiDefault() : $this->singleDefault();
+    }
+
     public function preProcess($data)
     {
-        if (is_null($data) || ! is_array($data)) {
-            return $this->defaultValue();
+        if ($this->config('enable_multiple')) {
+            return $this->preProcessMulti($data);
         }
+
+        if (is_null($data) || ! is_array($data)) {
+            return $this->singleDefault();
+        }
+
+        // Migrate old single-marker entry when enable_multiple was just turned on
+        // (handled in preProcessMulti via the 'lat' key check)
 
         return [
             'lat'               => isset($data['lat']) ? (float) $data['lat'] : null,
@@ -77,8 +116,57 @@ class GoogleMapsFieldtype extends Fieldtype
         ];
     }
 
+    private function preProcessMulti($data): array
+    {
+        if (is_null($data) || ! is_array($data)) {
+            return $this->multiDefault();
+        }
+
+        // Migrate a legacy single-marker entry (has flat 'lat' key)
+        if (array_key_exists('lat', $data) && ! array_key_exists('markers', $data)) {
+            $migratedMarker = $this->preProcessMarkerRow($data);
+            return [
+                'zoom_override' => null,
+                'markers'       => [$migratedMarker],
+            ];
+        }
+
+        $markers = array_map(
+            fn ($m) => $this->preProcessMarkerRow($m),
+            is_array($data['markers'] ?? null) ? $data['markers'] : []
+        );
+
+        return [
+            'zoom_override' => isset($data['zoom_override']) && $data['zoom_override'] !== '' && $data['zoom_override'] !== null
+                ? (int) $data['zoom_override']
+                : null,
+            'markers' => $markers,
+        ];
+    }
+
+    private function preProcessMarkerRow(array $m): array
+    {
+        return [
+            'lat'               => isset($m['lat']) && $m['lat'] !== '' && $m['lat'] !== null ? (float) $m['lat'] : null,
+            'lng'               => isset($m['lng']) && $m['lng'] !== '' && $m['lng'] !== null ? (float) $m['lng'] : null,
+            'address'           => (string) ($m['address'] ?? ''),
+            'zoom'              => (int) ($m['zoom'] ?? 13),
+            'infobox_title'     => (string) ($m['infobox_title'] ?? ''),
+            'infobox_content'   => (string) ($m['infobox_content'] ?? ''),
+            'marker_icon_url'   => (string) ($m['marker_icon_url'] ?? ''),
+            'marker_icon_width' => (int) ($m['marker_icon_width'] ?? 0),
+            'marker_icon_height'=> (int) ($m['marker_icon_height'] ?? 0),
+            'marker_asset_id'   => (string) ($m['marker_asset_id'] ?? ''),
+            'enabled'           => isset($m['enabled']) ? (bool) $m['enabled'] : true,
+        ];
+    }
+
     public function process($data)
     {
+        if ($this->config('enable_multiple')) {
+            return $this->processMulti($data);
+        }
+
         if (empty($data['lat']) || empty($data['lng'])) {
             return null;
         }
@@ -88,17 +176,101 @@ class GoogleMapsFieldtype extends Fieldtype
             'lng'               => round((float) $data['lng'], 7),
             'address'           => trim($data['address'] ?? ''),
             'zoom'              => (int) ($data['zoom'] ?? 13),
-            'infobox_title'     => trim((string) ($data['infobox_title'] ?? '')),
-            'infobox_content'   => trim((string) ($data['infobox_content'] ?? '')),
-            'marker_icon_url'   => trim((string) ($data['marker_icon_url'] ?? '')),
+            'infobox_title'     => self::sanitizePlainText($data['infobox_title'] ?? ''),
+            'infobox_content'   => self::sanitizeHtml($data['infobox_content'] ?? ''),
+            'marker_icon_url'   => self::sanitizeUrl($data['marker_icon_url'] ?? ''),
             'marker_icon_width' => (int) ($data['marker_icon_width'] ?? 0),
             'marker_icon_height'=> (int) ($data['marker_icon_height'] ?? 0),
             'marker_asset_id'   => trim((string) ($data['marker_asset_id'] ?? '')),
         ];
     }
 
+    /**
+     * Strip script-injection vectors from admin-supplied HTML kept for popup rendering.
+     *
+     * Why: infobox_content is rendered as HTML in Leaflet/Google popups. Without this,
+     * a CP user could store <script>, on*= handlers, or javascript: URLs that would
+     * execute against any visitor of the public site.
+     */
+    public static function sanitizeHtml(mixed $html): string
+    {
+        $html = trim((string) $html);
+        if ($html === '') return '';
+
+        $html = preg_replace('#<(script|style|iframe|object|embed|link|meta)\b[^>]*>.*?</\1>#is', '', $html);
+        $html = preg_replace('#<(script|style|iframe|object|embed|link|meta)\b[^>]*/?>#i', '', $html);
+        $html = preg_replace('#\son[a-z]+\s*=\s*"[^"]*"#i', '', $html);
+        $html = preg_replace("#\son[a-z]+\s*=\s*'[^']*'#i", '', $html);
+        $html = preg_replace('#\son[a-z]+\s*=\s*[^\s>]+#i', '', $html);
+        $html = preg_replace('#(href|src|formaction|xlink:href)\s*=\s*(["\']?)\s*(?:javascript|data|vbscript):[^"\'>\s]*\2#i', '$1=""', $html);
+
+        return $html;
+    }
+
+    public static function sanitizePlainText(mixed $value): string
+    {
+        return trim(strip_tags((string) $value));
+    }
+
+    public static function sanitizeUrl(mixed $url): string
+    {
+        $url = trim((string) $url);
+        if ($url === '') return '';
+        if (preg_match('#^\s*(javascript|data|vbscript):#i', $url)) return '';
+        return $url;
+    }
+
+    private function processMulti($data): ?array
+    {
+        if (! is_array($data)) return null;
+
+        $markers = array_values(array_filter(
+            array_map(fn ($m) => $this->processMarkerRow($m), $data['markers'] ?? []),
+            fn ($m) => $m !== null
+        ));
+
+        if (empty($markers)) return null;
+
+        return [
+            'zoom_override' => isset($data['zoom_override']) && $data['zoom_override'] !== '' && $data['zoom_override'] !== null
+                ? (int) $data['zoom_override']
+                : null,
+            'markers' => $markers,
+        ];
+    }
+
+    private function processMarkerRow(array $m): ?array
+    {
+        if (empty($m['lat']) || empty($m['lng'])) return null;
+
+        return [
+            'lat'               => round((float) $m['lat'], 7),
+            'lng'               => round((float) $m['lng'], 7),
+            'address'           => trim((string) ($m['address'] ?? '')),
+            'zoom'              => (int) ($m['zoom'] ?? 13),
+            'infobox_title'     => self::sanitizePlainText($m['infobox_title'] ?? ''),
+            'infobox_content'   => self::sanitizeHtml($m['infobox_content'] ?? ''),
+            'marker_icon_url'   => self::sanitizeUrl($m['marker_icon_url'] ?? ''),
+            'marker_icon_width' => (int) ($m['marker_icon_width'] ?? 0),
+            'marker_icon_height'=> (int) ($m['marker_icon_height'] ?? 0),
+            'marker_asset_id'   => trim((string) ($m['marker_asset_id'] ?? '')),
+            'enabled'           => isset($m['enabled']) ? (bool) $m['enabled'] : true,
+        ];
+    }
+
     public function preProcessIndex($data)
     {
+        // Multi-marker mode
+        if ($this->config('enable_multiple')) {
+            if (is_null($data) || empty($data['markers'])) return '—';
+            $count = count($data['markers']);
+            $first = $data['markers'][0] ?? [];
+            $label = ! empty($first['address'])
+                ? (strlen($first['address']) > 40 ? substr($first['address'], 0, 40) . '…' : $first['address'])
+                : (isset($first['lat']) ? number_format($first['lat'], 4) . ', ' . number_format($first['lng'], 4) : '—');
+            return $count > 1 ? "{$label} (+".($count - 1)." more)" : $label;
+        }
+
         if (is_null($data) || empty($data['lat'])) {
             return '—';
         }
@@ -113,6 +285,30 @@ class GoogleMapsFieldtype extends Fieldtype
 
     public function augment($value)
     {
+        if ($this->config('enable_multiple')) {
+            return $this->augmentMulti($value);
+        }
+
+        return $this->augmentSingle($value);
+    }
+
+    private function resolveMarkerIcon(array $entry): ?array
+    {
+        $entryIconUrl    = $entry['marker_icon_url']    ?? '';
+        $entryIconWidth  = (int) ($entry['marker_icon_width']  ?? 0);
+        $entryIconHeight = (int) ($entry['marker_icon_height'] ?? 0);
+
+        $markerIconUrl    = (string) ($entryIconUrl  ?: ($this->config('marker_icon_url')   ?: config('statamic-google-maps.marker_icon_url', '')));
+        $markerIconWidth  = $entryIconWidth  > 0 ? $entryIconWidth  : (int) ($this->config('marker_icon_width')   ?: config('statamic-google-maps.marker_icon_width', 40));
+        $markerIconHeight = $entryIconHeight > 0 ? $entryIconHeight : (int) ($this->config('marker_icon_height')  ?: config('statamic-google-maps.marker_icon_height', 40));
+
+        return $markerIconUrl
+            ? ['url' => $markerIconUrl, 'width' => $markerIconWidth, 'height' => $markerIconHeight]
+            : null;
+    }
+
+    private function augmentSingle(?array $value): ?array
+    {
         if (is_null($value) || empty($value['lat'])) {
             return null;
         }
@@ -122,28 +318,24 @@ class GoogleMapsFieldtype extends Fieldtype
         $zoom = (int) ($value['zoom'] ?? $this->config('default_zoom') ?? config('statamic-google-maps.defaults.zoom', 13));
         $key  = config('statamic-google-maps.api_key', '');
 
-        // Per-field config overrides the global site default (see README).
         $provider   = $this->config('map_provider') ?: config('statamic-google-maps.map_provider', 'google');
         $mapHeight  = (int) ($this->config('map_height') ?: config('statamic-google-maps.map_height', 420));
-
-        // Infobox: per-entry stored value → per-field config default → global config
-        // ($value key may be absent on old entries — use ?? '' before ?: chain)
         $infoboxTitle   = ($value['infobox_title']   ?? '') ?: ($this->config('default_infobox_title')   ?: config('statamic-google-maps.infobox_title', ''));
         $infoboxContent = ($value['infobox_content'] ?? '') ?: ($this->config('default_infobox_content') ?: config('statamic-google-maps.infobox_content', ''));
-
-        // Map style: per-field config → global config (no per-entry override — style is a fieldset concern)
         $mapStyle = (string) ($this->config('map_style') ?: config('statamic-google-maps.map_style', ''));
+        $markerIcon = $this->resolveMarkerIcon($value);
 
-        // Marker icon: per-entry stored value → per-field config → global config
-        $entryIconUrl    = $value['marker_icon_url']    ?? '';
-        $entryIconWidth  = $value['marker_icon_width']  ?? 0;
-        $entryIconHeight = $value['marker_icon_height'] ?? 0;
-        $markerIconUrl    = (string) ($entryIconUrl  ?: ($this->config('marker_icon_url')   ?: config('statamic-google-maps.marker_icon_url', '')));
-        $markerIconWidth  = (int)    ($entryIconWidth  > 0 ? $entryIconWidth  : ($this->config('marker_icon_width')   ?: config('statamic-google-maps.marker_icon_width', 40)));
-        $markerIconHeight = (int)    ($entryIconHeight > 0 ? $entryIconHeight : ($this->config('marker_icon_height')  ?: config('statamic-google-maps.marker_icon_height', 40)));
-        $markerIcon = $markerIconUrl
-            ? ['url' => $markerIconUrl, 'width' => $markerIconWidth, 'height' => $markerIconHeight]
-            : null;
+        // Build a markers array so templates can use a unified API
+        $markerEntry = [
+            'lat'              => $lat,
+            'lng'              => $lng,
+            'address'          => $value['address'] ?? '',
+            'infobox_title'    => $infoboxTitle,
+            'infobox_content'  => $infoboxContent,
+            'marker_icon'      => $markerIcon,
+            'marker_icon_json' => $markerIcon ? json_encode($markerIcon) : '',
+        ];
+        $markersJson = json_encode([$this->markerForFrontend($markerEntry)]);
 
         return [
             'lat'              => $lat,
@@ -157,6 +349,9 @@ class GoogleMapsFieldtype extends Fieldtype
             'map_style'        => $mapStyle,
             'marker_icon'      => $markerIcon,
             'marker_icon_json' => $markerIcon ? json_encode($markerIcon) : '',
+            'markers'          => [$markerEntry],
+            'markers_json'     => $markersJson,
+            'enable_clustering'=> false,
             'google_maps_url' => "https://www.google.com/maps/search/?api=1&query={$lat},{$lng}",
             'directions_url'  => "https://www.google.com/maps/dir/?api=1&destination={$lat},{$lng}",
             'static_map_url'  => $key
@@ -165,9 +360,101 @@ class GoogleMapsFieldtype extends Fieldtype
         ];
     }
 
+    private function augmentMulti(?array $value): ?array
+    {
+        if (is_null($value) || empty($value['markers'])) {
+            return null;
+        }
+
+        $provider   = $this->config('map_provider') ?: config('statamic-google-maps.map_provider', 'google');
+        $mapHeight  = (int) ($this->config('map_height') ?: config('statamic-google-maps.map_height', 420));
+        $mapStyle   = (string) ($this->config('map_style') ?: config('statamic-google-maps.map_style', ''));
+        $zoomOverride = isset($value['zoom_override']) && $value['zoom_override'] !== null && $value['zoom_override'] !== ''
+            ? (int) $value['zoom_override']
+            : null;
+        $clustering    = (bool) $this->config('enable_clustering');
+        $clusterColor  = (string) ($this->config('cluster_color') ?: '');
+
+        $augmentedMarkers = [];
+        foreach ($value['markers'] as $m) {
+            if (isset($m['enabled']) && $m['enabled'] === false) continue;
+            if (empty($m['lat']) || empty($m['lng'])) continue;
+
+            $lat  = (float) $m['lat'];
+            $lng  = (float) $m['lng'];
+            $infoboxTitle   = ($m['infobox_title']   ?? '') ?: ($this->config('default_infobox_title')   ?: config('statamic-google-maps.infobox_title', ''));
+            $infoboxContent = ($m['infobox_content'] ?? '') ?: ($this->config('default_infobox_content') ?: config('statamic-google-maps.infobox_content', ''));
+            $markerIcon     = $this->resolveMarkerIcon($m);
+
+            $augmentedMarkers[] = [
+                'lat'              => $lat,
+                'lng'              => $lng,
+                'address'          => $m['address'] ?? '',
+                'infobox_title'    => $infoboxTitle,
+                'infobox_content'  => $infoboxContent,
+                'marker_icon'      => $markerIcon,
+                'marker_icon_json' => $markerIcon ? json_encode($markerIcon) : '',
+            ];
+        }
+
+        if (empty($augmentedMarkers)) return null;
+
+        $first = $augmentedMarkers[0];
+        $markersJson = json_encode(array_map([$this, 'markerForFrontend'], $augmentedMarkers));
+
+        return [
+            // First-marker convenience (backward compat)
+            'lat'             => $first['lat'],
+            'lng'             => $first['lng'],
+            'address'         => $first['address'],
+            'zoom'            => $zoomOverride,
+            'map_provider'    => $provider,
+            'map_height'      => $mapHeight,
+            'map_style'       => $mapStyle,
+            'markers'          => $augmentedMarkers,
+            'markers_json'     => $markersJson,
+            'enable_clustering' => $clustering,
+            'cluster_color'    => $clusterColor,
+        ];
+    }
+
+    /** Build the lean JSON-serialisable shape used in data-markers attribute */
+    private function markerForFrontend(array $m): array
+    {
+        return [
+            'lat'            => $m['lat'],
+            'lng'            => $m['lng'],
+            'infobox_title'  => $m['infobox_title']   ?? '',
+            'infobox_content'=> $m['infobox_content']  ?? '',
+            'iconJson'       => $m['marker_icon_json'] ?? '',
+        ];
+    }
+
     protected function configFieldItems(): array
     {
         return [
+            'enable_multiple' => [
+                'display'      => 'Enable Multiple Markers',
+                'instructions' => 'Allow adding multiple markers to this field.',
+                'type'         => 'toggle',
+                'default'      => false,
+                'width'        => 50,
+            ],
+            'enable_clustering' => [
+                'display'      => 'Enable Marker Clustering',
+                'instructions' => 'Group nearby markers into clusters. Only applies when multiple markers are enabled.',
+                'type'         => 'toggle',
+                'default'      => false,
+                'width'        => 50,
+            ],
+            'cluster_color' => [
+                'display'      => 'Cluster Colour',
+                'instructions' => 'Hex colour for the cluster circle (e.g. #4F46E5). Leave blank for the default indigo.',
+                'type'         => 'color',
+                'default'      => '',
+                'width'        => 50,
+                'if'           => ['enable_clustering' => 'equals true'],
+            ],
             'map_provider' => [
                 'display'      => 'Map Provider',
                 'instructions' => 'Override the global map provider for this field. Leave blank to use the site default (Tools → Google Maps).',
