@@ -1,14 +1,9 @@
 <?php
 
-namespace AltDesign\AltGoogleMapsAddon\Tests;
+use AltDesign\AltGoogleMapsAddon\Tests\TestCase;
 
-class ExampleTest extends TestCase
-{
-    /**
-     * A basic test example.
-     */
-    public function test_that_true_is_true(): void
-    {
-        $this->assertTrue(true);
-    }
-}
+uses(TestCase::class);
+
+it('runs the test suite', function () {
+    expect(true)->toBeTrue();
+});

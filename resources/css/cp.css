@@ -1,1 +1,453 @@
 @import "leaflet/dist/leaflet.css";
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Google Maps Fieldtype — shared component styles
+   Used by: GoogleMapsFieldtype.vue, MarkerListRow.vue, BulkEditPanel.vue
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.gmf-pin-badge {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 9999px;
+    background: white;
+    border: 1px solid rgb(209 213 219);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    color: rgb(75 85 99);
+}
+
+:is(.dark .gmf-pin-badge) {
+    background: rgb(31 41 55);
+    border-color: rgb(75 85 99);
+    color: rgb(209 213 219);
+}
+
+.gmf-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.gmf-input {
+    width: 100%;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+    color: rgb(17 24 39);
+    background: white;
+    border: 1px solid rgb(209 213 219);
+    border-radius: 0.375rem;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.gmf-input:focus {
+    border-color: rgb(139 92 246);
+    box-shadow: 0 0 0 3px rgb(139 92 246 / 0.15);
+}
+
+.gmf-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+:is(.dark .gmf-input) {
+    color: rgb(243 244 246);
+    background: rgb(17 24 39);
+    border-color: rgb(75 85 99);
+}
+
+:is(.dark .gmf-input):focus {
+    border-color: rgb(139 92 246);
+}
+
+.gmf-map {
+    width: 100%;
+}
+
+.gmf-search-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: white;
+    background: rgb(139 92 246);
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+
+.gmf-search-btn:hover:not(:disabled) {
+    background: rgb(124 58 237);
+}
+
+.gmf-search-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.gmf-clear-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.75rem;
+    color: rgb(156 163 175);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem 0.375rem;
+    border-radius: 0.375rem;
+    transition: color 0.15s, background 0.15s;
+}
+
+.gmf-clear-btn:hover {
+    color: rgb(239 68 68);
+    background: rgb(254 226 226);
+}
+
+:is(.dark .gmf-clear-btn):hover {
+    color: rgb(252 165 165);
+    background: rgb(127 29 29 / 0.3);
+}
+
+.gmf-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: rgb(109 40 217);
+    background: rgb(237 233 254);
+    border: 1px solid rgb(196 181 253);
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.gmf-add-btn:hover {
+    background: rgb(221 214 254);
+    border-color: rgb(167 139 250);
+}
+
+:is(.dark .gmf-add-btn) {
+    color: rgb(196 181 253);
+    background: rgb(46 16 101 / 0.4);
+    border-color: rgb(91 33 182 / 0.5);
+}
+
+:is(.dark .gmf-add-btn):hover {
+    background: rgb(46 16 101 / 0.6);
+}
+
+.gmf-remove-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.375rem;
+    height: 1.375rem;
+    color: rgb(156 163 175);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.gmf-remove-btn:hover {
+    color: rgb(239 68 68);
+    background: rgb(254 226 226);
+    border-color: rgb(252 165 165);
+}
+
+:is(.dark .gmf-remove-btn):hover {
+    color: rgb(252 165 165);
+    background: rgb(127 29 29 / 0.3);
+    border-color: rgb(185 28 28 / 0.4);
+}
+
+.gmf-marker-handle {
+    touch-action: none;
+    user-select: none;
+}
+
+/* ── Global / per-marker toggle switch ── */
+.gmf-toggle-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: 2.25rem;
+    height: 1.25rem;
+    border-radius: 9999px;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s;
+    padding: 0;
+}
+
+.gmf-toggle-btn.gmf-toggle-sm {
+    width: 1.75rem;
+    height: 1rem;
+}
+
+.gmf-toggle-on {
+    background: rgb(139 92 246);
+}
+
+.gmf-toggle-off {
+    background: rgb(209 213 219);
+}
+
+:is(.dark .gmf-toggle-off) {
+    background: rgb(75 85 99);
+}
+
+.gmf-toggle-knob {
+    position: absolute;
+    width: 0.875rem;
+    height: 0.875rem;
+    border-radius: 9999px;
+    background: white;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+    transition: transform 0.2s;
+    left: 3px;
+}
+
+.gmf-toggle-on .gmf-toggle-knob {
+    transform: translateX(1rem);
+}
+
+.gmf-toggle-btn.gmf-toggle-sm .gmf-toggle-knob {
+    width: 0.625rem;
+    height: 0.625rem;
+    left: 3px;
+}
+
+.gmf-toggle-btn.gmf-toggle-sm.gmf-toggle-on .gmf-toggle-knob {
+    transform: translateX(0.75rem);
+}
+
+/* ── Status badge ── */
+.gmf-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.gmf-status-on {
+    color: rgb(21 128 61);
+    background: rgb(220 252 231);
+}
+
+.gmf-status-off {
+    color: rgb(107 114 128);
+    background: rgb(243 244 246);
+}
+
+:is(.dark .gmf-status-on) {
+    color: rgb(134 239 172);
+    background: rgb(20 83 45 / 0.4);
+}
+
+:is(.dark .gmf-status-off) {
+    color: rgb(156 163 175);
+    background: rgb(55 65 81 / 0.5);
+}
+
+/* ── Tab switcher ── */
+.gmf-tab-btn {
+    padding: 0.3125rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border: none;
+    border-radius: 0.4375rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+}
+
+.gmf-tab-active {
+    background: white;
+    color: rgb(17 24 39);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+:is(.dark .gmf-tab-active) {
+    background: rgb(55 65 81);
+    color: rgb(243 244 246);
+}
+
+.gmf-tab-inactive {
+    background: transparent;
+    color: rgb(107 114 128);
+}
+
+.gmf-tab-inactive:hover {
+    color: rgb(55 65 81);
+}
+
+:is(.dark .gmf-tab-inactive) {
+    color: rgb(156 163 175);
+}
+
+:is(.dark .gmf-tab-inactive):hover {
+    color: rgb(209 213 219);
+}
+
+/* ── Map type mini tabs ── */
+.gmf-maptab-btn {
+    padding: 0.1875rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid rgb(209 213 219);
+    border-radius: 0.25rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.gmf-maptab-active {
+    background: rgb(139 92 246);
+    color: white;
+    border-color: rgb(139 92 246);
+}
+
+.gmf-maptab-inactive {
+    background: white;
+    color: rgb(107 114 128);
+}
+
+.gmf-maptab-inactive:hover {
+    background: rgb(243 244 246);
+}
+
+:is(.dark .gmf-maptab-inactive) {
+    background: rgb(31 41 55);
+    color: rgb(156 163 175);
+    border-color: rgb(75 85 99);
+}
+
+/* ── Edit/Close button ── */
+.gmf-edit-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1875rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: rgb(109 40 217);
+    background: rgb(237 233 254);
+    border: 1px solid rgb(196 181 253);
+    border-radius: 0.3125rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.gmf-edit-btn:hover, .gmf-edit-btn-open {
+    background: rgb(221 214 254);
+    border-color: rgb(167 139 250);
+}
+
+:is(.dark .gmf-edit-btn) {
+    color: rgb(196 181 253);
+    background: rgb(46 16 101 / 0.4);
+    border-color: rgb(91 33 182 / 0.5);
+}
+
+:is(.dark .gmf-edit-btn):hover, :is(.dark .gmf-edit-btn-open) {
+    background: rgb(46 16 101 / 0.6);
+}
+
+/* ── Apply button (bulk) ── */
+.gmf-apply-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    width: 100%;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: white;
+    background: rgb(109 40 217);
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.gmf-apply-btn:hover {
+    background: rgb(91 33 182);
+}
+
+/* ── Scope pill buttons ── */
+.gmf-scope-btn {
+    padding: 0.25rem 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border-radius: 9999px;
+    cursor: pointer;
+    border: 1px solid;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.gmf-scope-active {
+    background: rgb(109 40 217);
+    color: white;
+    border-color: rgb(109 40 217);
+}
+
+.gmf-scope-inactive {
+    background: white;
+    color: rgb(75 85 99);
+    border-color: rgb(209 213 219);
+}
+
+:is(.dark .gmf-scope-inactive) {
+    background: rgb(31 41 55);
+    color: rgb(156 163 175);
+    border-color: rgb(75 85 99);
+}
+
+/* ── Edit-all tab active indicator ── */
+.gmf-tab-bulk-active {
+    color: rgb(109 40 217) !important;
+}
+
+/* ── Toast ── */
+.gmf-toast {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: rgb(109 40 217);
+    background: rgb(237 233 254);
+    border: 1px solid rgb(196 181 253);
+    border-radius: 0.375rem;
+}
+
+:is(.dark .gmf-toast) {
+    color: rgb(196 181 253);
+    background: rgb(46 16 101 / 0.3);
+    border-color: rgb(91 33 182 / 0.5);
+}
+
+/* ── Spinner ── */
+@keyframes gmf-spin {
+    to { transform: rotate(360deg); }
+}
+
+.gmf-spin {
+    animation: gmf-spin 0.8s linear infinite;
+}
