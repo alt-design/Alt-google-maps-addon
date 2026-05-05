@@ -1259,18 +1259,18 @@ let _mapObserver = null;
 
 function tryInitMapWhenVisible(el) {
     if (!el || mapReady.value) return;
-    // If the element already has dimensions, init immediately
-    if (el.offsetWidth > 0 && el.offsetHeight > 0) {
-        initMap();
-        return;
-    }
-    // Otherwise wait until it becomes visible (handles two-column layouts,
-    // accordions, tabs, and any lazy container in Statamic CP)
+    // Always use IntersectionObserver — it accounts for overflow clipping from
+    // ancestor elements (e.g. Bard sets that collapse via max-height/overflow).
+    // offsetWidth/offsetHeight only reflect the element's own box and return > 0
+    // even when the element is invisible inside a clipped parent, causing the
+    // map to be initialised into a zero-visible-area container (grey box).
+    // The observer fires synchronously with the current state, so there is no
+    // latency penalty when the element is already visible.
     if (_mapObserver) _mapObserver.disconnect();
     _mapObserver = new IntersectionObserver(
         (entries) => {
             const entry = entries[0];
-            if (entry.isIntersecting && entry.target.offsetWidth > 0 && !mapReady.value) {
+            if (entry.isIntersecting && entry.intersectionRect.width > 0 && !mapReady.value) {
                 _mapObserver.disconnect();
                 _mapObserver = null;
                 initMap();
