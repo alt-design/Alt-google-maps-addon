@@ -1,9 +1,4 @@
 <?php
 
-use AltDesign\AltGoogleMapsAddon\Tests\TestCase;
-
-uses(TestCase::class);
-
-it('runs the test suite', function () {
-    expect(true)->toBeTrue();
-});
+// Placeholder removed — see SanitizerTest.php, GeocodingControllerTest.php,
+// ProviderHierarchyTest.php, and SettingsHierarchyTest.php for real coverage.
