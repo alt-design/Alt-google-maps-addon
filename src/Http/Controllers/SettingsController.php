@@ -45,7 +45,8 @@ class SettingsController extends Controller
             'infobox_title'      => GoogleMapsFieldtype::sanitizePlainText($values->get('infobox_title') ?? ''),
             'infobox_content'    => GoogleMapsFieldtype::sanitizeHtml($values->get('infobox_content') ?? ''),
             'map_style'          => trim((string) ($values->get('map_style') ?? '')),
-            'marker_icon_url'    => GoogleMapsFieldtype::sanitizeUrl($values->get('marker_icon_url') ?? ''),
+            'marker_icon_asset'  => $this->resolveAssetId($values->get('marker_icon_asset')),
+            'marker_icon_url'    => GoogleMapsFieldtype::sanitizeUrl($this->resolveAssetUrl($values->get('marker_icon_asset'))),
             'marker_icon_width'  => $values->get('marker_icon_width') !== null ? (int) $values->get('marker_icon_width') : 32,
             'marker_icon_height' => $values->get('marker_icon_height') !== null ? (int) $values->get('marker_icon_height') : 40,
         ];
@@ -60,6 +61,54 @@ class SettingsController extends Controller
         }
 
         return true;
+    }
+
+    private function resolveAssetId(mixed $value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+        $id = is_array($value) ? ($value[0] ?? null) : $value;
+        if (! $id) {
+            return null;
+        }
+        $id = (string) $id;
+
+        // Normalise to full 'container::path' format so Asset::find() works reliably.
+        if (! str_contains($id, '::')) {
+            foreach (\Statamic\Facades\AssetContainer::all() as $container) {
+                if (\Statamic\Facades\Asset::find($container->handle() . '::' . $id)) {
+                    return $container->handle() . '::' . $id;
+                }
+            }
+        }
+
+        return $id;
+    }
+
+    private function resolveAssetUrl(mixed $value): string
+    {
+        $id = $this->resolveAssetId($value);
+        if (! $id) {
+            return '';
+        }
+
+        // Try the ID as-is first (may already include container, e.g. 'assets::pin.png')
+        $asset = \Statamic\Facades\Asset::find($id);
+        if ($asset) {
+            return (string) $asset->url();
+        }
+
+        // Statamic's assets fieldtype sometimes returns just the path without the container
+        // prefix (e.g. 'pin.png' instead of 'assets::pin.png'). Try all containers.
+        foreach (\Statamic\Facades\AssetContainer::all() as $container) {
+            $asset = \Statamic\Facades\Asset::find($container->handle() . '::' . $id);
+            if ($asset) {
+                return (string) $asset->url();
+            }
+        }
+
+        return '';
     }
 
     private function getBlueprint()
@@ -93,6 +142,7 @@ class SettingsController extends Controller
             'infobox_title'      => config('statamic-google-maps.infobox_title', ''),
             'infobox_content'    => config('statamic-google-maps.infobox_content', ''),
             'map_style'          => config('statamic-google-maps.map_style', ''),
+            'marker_icon_asset'  => null,
             'marker_icon_url'    => config('statamic-google-maps.marker_icon_url', ''),
             'marker_icon_width'  => config('statamic-google-maps.marker_icon_width', 40),
             'marker_icon_height' => config('statamic-google-maps.marker_icon_height', 40),

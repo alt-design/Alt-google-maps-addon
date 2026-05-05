@@ -20,8 +20,11 @@ class GoogleMapTag extends Tags
         $width    = $this->params->get('width', '100%');
         $id       = $this->params->get('id', 'gmap-' . uniqid());
         $provider = $this->params->get('provider', config('statamic-google-maps.map_provider', 'google'));
-        $key      = config('statamic-google-maps.api_key', '');
-        $mapType  = $this->params->get('map_type', config('statamic-google-maps.map_type', 'roadmap'));
+        $key             = config('statamic-google-maps.api_key', '');
+        $mapType         = $this->params->get('map_type', config('statamic-google-maps.map_type', 'roadmap'));
+        $markerIconUrl   = $this->params->get('marker_icon', config('statamic-google-maps.marker_icon_url', ''));
+        $markerIconWidth = (int) $this->params->get('marker_icon_width', config('statamic-google-maps.marker_icon_width', 40));
+        $markerIconHeight= (int) $this->params->get('marker_icon_height', config('statamic-google-maps.marker_icon_height', 40));
 
         if ($lat === null || $lng === null) {
             return '<!-- google_map: lat and lng are required -->';
@@ -32,15 +35,18 @@ class GoogleMapTag extends Tags
         }
 
         return view('statamic-google-maps::map', [
-            'lat'      => (float) $lat,
-            'lng'      => (float) $lng,
-            'zoom'     => $zoom,
-            'height'   => $height,
-            'width'    => $width,
-            'id'       => $id,
-            'provider' => $provider,
-            'key'      => $key,
-            'map_type' => $mapType,
+            'lat'               => (float) $lat,
+            'lng'               => (float) $lng,
+            'zoom'              => $zoom,
+            'height'            => $height,
+            'width'             => $width,
+            'id'                => $id,
+            'provider'          => $provider,
+            'key'               => $key,
+            'map_type'          => $mapType,
+            'marker_icon_url'   => $markerIconUrl,
+            'marker_icon_width' => $markerIconWidth,
+            'marker_icon_height'=> $markerIconHeight,
         ])->render();
     }
 

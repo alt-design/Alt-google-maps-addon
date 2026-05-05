@@ -243,11 +243,11 @@ All field-level config options are optional and override the global defaults for
 
 **Marker icon**
 
-| Option               | Type    | Default          | Description                                          |
-| -------------------- | ------- | ---------------- | ---------------------------------------------------- |
-| `marker_icon_url`    | text    | _(site default)_ | Custom marker image URL                              |
-| `marker_icon_width`  | integer | `40`             | Marker icon width in pixels                          |
-| `marker_icon_height` | integer | `40`             | Marker icon height in pixels                         |
+| Option               | Type    | Default          | Description                                                                 |
+| -------------------- | ------- | ---------------- | --------------------------------------------------------------------------- |
+| `marker_icon_asset`  | assets  | _(site default)_ | Custom marker image — opens the asset browser / drag & drop picker          |
+| `marker_icon_width`  | integer | `40`             | Marker icon width in pixels                                                 |
+| `marker_icon_height` | integer | `40`             | Marker icon height in pixels                                                |
 
 Example with custom options:
 
@@ -605,25 +605,31 @@ If your HTML includes a close button, give it the class `popup-close` and the ad
 
 You can replace the default provider pin with any PNG or SVG image. The icon URL, width (px), and height (px) are resolved through a **4-level hierarchy** — the same pattern as the infobox:
 
-| Priority    | Source                   | How                                                                                   |
-| ----------- | ------------------------ | ------------------------------------------------------------------------------------- |
-| 1 — highest | Per-entry (stored value) | Editor pastes a URL or uses the **Browse assets** button in the CP fieldtype          |
-| 2           | Per-field config         | `marker_icon_url` / `marker_icon_width` / `marker_icon_height` on the blueprint field |
-| 3           | CP Settings page         | **Tools → Alt Google Maps** → Marker section                                          |
-| 4 — lowest  | Config / `.env`          | `marker_icon_url/width/height` in `config/statamic-google-maps.php` / `.env`          |
+| Priority    | Source                   | How                                                                                         |
+| ----------- | ------------------------ | ------------------------------------------------------------------------------------------- |
+| 1 — highest | Per-entry (stored value) | Editor uses the **Browse assets** / drag & drop / choose file picker in the CP fieldtype    |
+| 2           | Per-field config         | `marker_icon_asset` / `marker_icon_width` / `marker_icon_height` on the blueprint field     |
+| 3           | CP Settings page         | **Tools → Alt Google Maps** → Marker section (asset picker)                                 |
+| 4 — lowest  | Config / `.env`          | `marker_icon_url/width/height` in `config/statamic-google-maps.php` / `.env`                |
 
 Leaving any level empty means "inherit from the next level down". If the resolved URL is empty after all fallbacks, the provider's default pin is used.
 
 ### Asset browser picker
 
-The Marker Icon field in the CP uses Statamic's native **Assets fieldtype** component — the same UI used by all other asset fields in the CP. This means the editor gets:
+The Marker Icon field uses Statamic's native **Assets fieldtype** component — the same UI used by all other asset fields in the CP — at **every level**:
+
+- **Per-entry** — appears inside the CP fieldtype for both single and multi-marker modes
+- **Per-field config** — the `marker_icon_asset` option in the blueprint / fieldset editor
+- **CP Settings page** — **Tools → Alt Google Maps** → Marker section
+
+In all three places the editor gets:
 
 - A **Browse Assets** button that opens the full asset selector modal
 - **Drag & drop** file upload directly onto the field
-- A **choose a file** link to open the OS file picker
-- A list row showing the selected image with filename, filesize, and a remove button
+- A **Choose a file** link to open the OS file picker
+- A thumbnail row showing the selected image with filename, filesize, and a remove button
 
-When an asset is selected or uploaded, the field automatically resolves its public URL and stores it (alongside the asset ID for future reference). The width/height inputs appear below once an icon URL is set.
+When an asset is selected or uploaded, the addon automatically resolves its public URL and stores it alongside the asset ID. The width/height inputs appear below once an icon is selected.
 
 ### `marker_icon` and `marker_icon_json` augmented variables
 

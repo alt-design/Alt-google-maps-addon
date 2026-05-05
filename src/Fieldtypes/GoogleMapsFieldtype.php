@@ -292,13 +292,44 @@ class GoogleMapsFieldtype extends Fieldtype
         return $this->augmentSingle($value);
     }
 
+    private function resolveConfigAssetUrl(mixed $value): string
+    {
+        if (empty($value)) {
+            return '';
+        }
+        $id = is_array($value) ? ($value[0] ?? null) : $value;
+        if (! $id) {
+            return '';
+        }
+        $id = (string) $id;
+        $asset = \Statamic\Facades\Asset::find($id);
+        if ($asset) {
+            return (string) $asset->url();
+        }
+        // Fallback: try prefixing each container (handles bare path like 'pin.png')
+        foreach (\Statamic\Facades\AssetContainer::all() as $container) {
+            $asset = \Statamic\Facades\Asset::find($container->handle() . '::' . $id);
+            if ($asset) {
+                return (string) $asset->url();
+            }
+        }
+        // Last resort: treat as a plain URL (backward compat with old text config)
+        return filter_var($id, FILTER_VALIDATE_URL) ? $id : '';
+    }
+
     private function resolveMarkerIcon(array $entry): ?array
     {
         $entryIconUrl    = $entry['marker_icon_url']    ?? '';
         $entryIconWidth  = (int) ($entry['marker_icon_width']  ?? 0);
         $entryIconHeight = (int) ($entry['marker_icon_height'] ?? 0);
 
-        $markerIconUrl    = (string) ($entryIconUrl  ?: ($this->config('marker_icon_url')   ?: config('statamic-google-maps.marker_icon_url', '')));
+        // Field-level config: prefer new asset picker (marker_icon_asset), fall back to legacy URL text
+        $configAsset = $this->config('marker_icon_asset');
+        $configUrl   = $configAsset
+            ? $this->resolveConfigAssetUrl($configAsset)
+            : (string) ($this->config('marker_icon_url') ?? '');
+
+        $markerIconUrl    = (string) ($entryIconUrl  ?: ($configUrl ?: config('statamic-google-maps.marker_icon_url', '')));
         $markerIconWidth  = $entryIconWidth  > 0 ? $entryIconWidth  : (int) ($this->config('marker_icon_width')   ?: config('statamic-google-maps.marker_icon_width', 40));
         $markerIconHeight = $entryIconHeight > 0 ? $entryIconHeight : (int) ($this->config('marker_icon_height')  ?: config('statamic-google-maps.marker_icon_height', 40));
 
@@ -510,10 +541,11 @@ class GoogleMapsFieldtype extends Fieldtype
                 'type'         => 'textarea',
                 'width'        => 100,
             ],
-            'marker_icon_url' => [
-                'display'      => 'Custom Marker Icon URL',
-                'instructions' => 'URL to a custom marker image (PNG or SVG). Overrides the global icon for this field. Leave blank to inherit.',
-                'type'         => 'text',
+            'marker_icon_asset' => [
+                'display'      => 'Custom Marker Icon',
+                'instructions' => 'Custom marker image (PNG or SVG). Overrides the global icon for this field. Leave blank to inherit.',
+                'type'         => 'assets',
+                'max_files'    => 1,
                 'width'        => 100,
             ],
             'marker_icon_width' => [

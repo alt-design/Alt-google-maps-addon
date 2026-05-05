@@ -34,7 +34,16 @@
             maxZoom: 21,
         }).addTo(map);
 
+        @if (!empty($marker_icon_url))
+        var icon = L.icon({
+            iconUrl: {{ Js::from($marker_icon_url) }},
+            iconSize: [{{ $marker_icon_width }}, {{ $marker_icon_height }}],
+            iconAnchor: [{{ (int)($marker_icon_width / 2) }}, {{ $marker_icon_height }}],
+        });
+        L.marker([lat, lng], { icon: icon }).addTo(map);
+        @else
         L.marker([lat, lng]).addTo(map);
+        @endif
     }
 
     if (document.readyState === 'loading') {
@@ -82,7 +91,18 @@
             mapTypeId: mapType,
             scrollwheel: false,
         });
+        @if (!empty($marker_icon_url))
+        new google.maps.Marker({
+            position: pos,
+            map: map,
+            icon: {
+                url: {{ Js::from($marker_icon_url) }},
+                scaledSize: new google.maps.Size({{ $marker_icon_width }}, {{ $marker_icon_height }}),
+            },
+        });
+        @else
         new google.maps.Marker({ position: pos, map: map });
+        @endif
     }
 
     if (window.google && window.google.maps) {

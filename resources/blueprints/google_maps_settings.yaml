@@ -66,12 +66,13 @@ tabs:
               width: 100
       - display: Marker
         fields:
-          - handle: marker_icon_url
+          - handle: marker_icon_asset
             field:
-              type: text
-              display: Custom Marker Icon URL
-              instructions: "URL to a custom marker image (PNG or SVG). Leave blank to use the default pin."
+              type: assets
+              display: Marker Icon
+              instructions: "Custom marker image (PNG or SVG). Leave blank to use the default pin."
               instructions_position: above
+              max_files: 1
               width: 100
           - handle: marker_icon_width
             field:
