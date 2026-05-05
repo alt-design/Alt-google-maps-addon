@@ -201,7 +201,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 // ─── Props ─────────────────────────────────────────────────────────────────────
 const props = defineProps({
@@ -257,6 +257,13 @@ const emit = defineEmits([
 
 /** Search query is purely local UI state — cleared when the row collapses */
 const localSearchQuery = ref('');
+let _searchDebounceTimer = null;
+
+watch(localSearchQuery, (q) => {
+    clearTimeout(_searchDebounceTimer);
+    if (!q.trim()) return;
+    _searchDebounceTimer = setTimeout(onSearch, 500);
+});
 
 // ─── Handlers ──────────────────────────────────────────────────────────────────
 
@@ -269,6 +276,7 @@ function onMapDivRef(el) {
 }
 
 function onSearch() {
+    clearTimeout(_searchDebounceTimer);
     emit('search', localSearchQuery.value);
 }
 </script>

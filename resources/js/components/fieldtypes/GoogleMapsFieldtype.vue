@@ -761,6 +761,13 @@ function onBulkApply({ template: t, fields, scope }) {
 const searchQuery = ref('');
 const isSearching = ref(false);
 const searchError = ref('');
+let _searchDebounceTimer = null;
+
+watch(searchQuery, (q) => {
+    clearTimeout(_searchDebounceTimer);
+    if (!q.trim()) { searchError.value = ''; return; }
+    _searchDebounceTimer = setTimeout(search, 500);
+});
 
 // ─── Map state ─────────────────────────────────────────────────────────────────
 const mapEl = ref(null);
@@ -1134,6 +1141,7 @@ async function onMapPick(lat, lng) {
 }
 
 async function search() {
+    clearTimeout(_searchDebounceTimer);
     const q = searchQuery.value.trim();
     if (!q || isSearching.value) return;
     isSearching.value = true;
