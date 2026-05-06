@@ -326,15 +326,20 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, getCurrentInstance } from 'vue';
-import { MarkerClusterer } from '@googlemaps/markerclusterer';
-import { loadGoogleMapsScript, loadLeaflet, getLeaflet } from '../../composables/useMapLoader.js';
-import { postCp, googleGeocode, googleReverseGeocode, geocodeAddress, reverseGeocodeAddress } from '../../composables/useGeocoder.js';
+import { ref, computed, watch, nextTick, getCurrentInstance } from 'vue';
+
 import MarkerListRow from './partials/MarkerListRow.vue';
 import BulkEditPanel from './partials/BulkEditPanel.vue';
 
-const _instance = getCurrentInstance();
-const _axios = _instance?.proxy?.$axios ?? null;
+import { useFieldConfig }       from '../../composables/useFieldConfig.js';
+import { useSingleMarker }      from '../../composables/useSingleMarker.js';
+import { useMultiMarkerData }   from '../../composables/useMultiMarkerData.js';
+import { useMarkerSearch }      from '../../composables/useMarkerSearch.js';
+import { useAssetResolver }     from '../../composables/useAssetResolver.js';
+import { useMapInit }           from '../../composables/useMapInit.js';
+import { useSingleMarkerRender } from '../../composables/useSingleMarkerRender.js';
+import { useMultiMarkerRender } from '../../composables/useMultiMarkerRender.js';
+import { useMarkerMiniMaps }    from '../../composables/useMarkerMiniMaps.js';
 
 const props = defineProps({
     value: { default: null },
@@ -343,445 +348,68 @@ const props = defineProps({
     meta: { type: Object, default: () => ({}) },
     readOnly: { type: Boolean, default: false },
 });
-
 const emit = defineEmits(['update:value']);
 
-// ─── Mode ──────────────────────────────────────────────────────────────────────
-const isMulti = computed(() => !!props.config.enable_multiple);
+const _instance = getCurrentInstance();
+const _axios = _instance?.proxy?.$axios ?? null;
 
-// ─── Global config ─────────────────────────────────────────────────────────────
-const globalConfig = computed(() => Statamic.$config.get('googleMaps') || {});
-const mapProvider = computed(() =>
-    props.config.map_provider || globalConfig.value.map_provider || 'google'
-);
-const mapHeight = computed(() => props.config.map_height || globalConfig.value.map_height || 420);
-const defaultZoom = computed(() =>
-    parseInt(props.config.default_zoom) || globalConfig.value.defaults?.zoom || 13
-);
-const defaultLat = computed(() =>
-    parseFloat(props.config.default_lat) || globalConfig.value.defaults?.lat || null
-);
-const defaultLng = computed(() =>
-    parseFloat(props.config.default_lng) || globalConfig.value.defaults?.lng || null
-);
+// ─── Layer 1: Config ──────────────────────────────────────────────────────────
+const config = useFieldConfig(props);
+const { isMulti, globalConfig, mapProvider, mapHeight, defaultZoom, defaultLat, defaultLng } = config;
 
-// ─── Single-marker state ───────────────────────────────────────────────────────
-function makeSingleDefault() {
-    return {
-        lat: defaultLat.value, lng: defaultLng.value, address: '',
-        zoom: defaultZoom.value, infobox_title: '', infobox_content: '',
-        marker_icon_url: '', marker_icon_width: 0, marker_icon_height: 0, marker_asset_id: '',
-    };
-}
+// ─── Layer 3: Network ─────────────────────────────────────────────────────────
+const markerSearch  = useMarkerSearch({ _axios, mapProvider });
+const assetResolver = useAssetResolver({ _axios });
 
-const internalValue = ref(
-    props.value && typeof props.value === 'object' && props.value.lat != null
-        ? { ...props.value }
-        : makeSingleDefault()
-);
+// ─── Layer 2: Data ────────────────────────────────────────────────────────────
+const single = useSingleMarker(props, emit, config);
+const { internalValue, hasLocation, markerAssetIds, update, updateCoord } = single;
 
-const hasLocation = computed(() =>
-    internalValue.value.lat != null && internalValue.value.lng != null
-);
+// `cbs` is mutated below after every composable initialises. Functions inside
+// useMultiMarkerData read these properties lazily (at user interaction time),
+// not at setup time, so empty-at-creation is fine.
+const cbs = {};
+const multi = useMultiMarkerData(props, emit, config, cbs, markerSearch, assetResolver);
+const {
+    markersData, zoomOverride, fieldEnabled, editMode, expandedMarker,
+    markerSearching, markerSearchErrors, markerAssetIdsMap, bulkToast,
+    addMarker, removeMarker, toggleExpanded, toggleMarkerEnabled,
+    updateMarkerField, updateMarkerCoord, clearMarkerLocation,
+    onMarkersReordered, clearAllMarkersData, clearAllMarkers,
+    onZoomOverrideChange, onBulkApply, searchMarker, onMultiMarkerAssetUpdate,
+    onMarkerMiniMapPick,
+} = multi;
 
-function update(value) {
-    internalValue.value = { ...value };
-    emit('update:value', value);
-}
-
-// ─── Multi-marker state ────────────────────────────────────────────────────────
-let _nextId = 1;
-function genId() { return 'gmf-' + (_nextId++) + '-' + Math.random().toString(36).slice(2, 7); }
-
-function wrapMarker(m) {
-    return {
-        _id: genId(),
-        lat: m.lat ?? null,
-        lng: m.lng ?? null,
-        address: m.address ?? '',
-        zoom: m.zoom ?? defaultZoom.value,
-        infobox_title: m.infobox_title ?? '',
-        infobox_content: m.infobox_content ?? '',
-        marker_icon_url: m.marker_icon_url ?? '',
-        marker_icon_width: m.marker_icon_width ?? 0,
-        marker_icon_height: m.marker_icon_height ?? 0,
-        marker_asset_id: m.marker_asset_id ?? '',
-        enabled: m.enabled !== false, // default on
-    };
-}
-
-function initMarkersFromProp() {
-    const v = props.value;
-    if (!v || typeof v !== 'object') return [];
-    if (Array.isArray(v.markers)) return v.markers.map(wrapMarker);
-    return [];
-}
-
-const markersData = ref(initMarkersFromProp());
-const zoomOverride = ref(props.value?.zoom_override != null ? props.value.zoom_override : null);
-
-// Global field enabled toggle
-const fieldEnabled = ref(true);
-
-// Edit mode: 'individual' | 'bulk'
-const editMode = ref('individual');
-
-// Active count (enabled markers)
-const activeMarkerCount = computed(() => markersData.value.filter(m => m.enabled !== false).length);
-
-const expandedMarker = ref(null);
-const markerSearching = ref({});
-const markerSearchErrors = ref({});
-const markerAssetIdsMap = ref({});
-
-// Per-marker individual mini-map state
-const markerMapInstances = {}; // _id -> mapInstance
-const markerMapMarkers = {};   // _id -> markerInstance
-let markerMapRefs = {};        // _id -> DOM el (populated by :ref callback)
-const markerMapType = ref({});  // _id -> 'roadmap' | 'satellite'
-
-// Toast shown above the marker list after a bulk-apply — stays in parent so
-// it persists when the user switches back to the Individual tab.
-const bulkToast = ref('');
-let _bulkToastTimer = null;
-
-markersData.value.forEach(m => {
-    if (m.marker_asset_id) markerAssetIdsMap.value[m._id] = [m.marker_asset_id];
-});
-
-function emitMulti() {
-    emit('update:value', {
-        zoom_override: zoomOverride.value,
-        markers: markersData.value.map(({ _id, ...rest }) => rest),
-    });
-}
-
-function addMarker() {
-    const m = wrapMarker({});
-    markersData.value = [...markersData.value, m];
-    expandedMarker.value = m._id;
-    emitMulti();
-    nextTick(() => {
-        refreshMultiMapMarkers();
-        initMarkerMiniMap(m._id);
-    });
-}
-
-function removeMarker(id) {
-    if (!window.confirm('Are you sure you want to remove this marker?')) return;
-    destroyMarkerMiniMap(id);
-    markersData.value = markersData.value.filter(m => m._id !== id);
-    if (expandedMarker.value === id) expandedMarker.value = null;
-    delete markerAssetIdsMap.value[id];
-    delete markerSearching.value[id];
-    delete markerSearchErrors.value[id];
-    delete markerMapType.value[id];
-    emitMulti();
-    nextTick(() => refreshMultiMapMarkers());
-}
-
-function toggleExpanded(id) {
-    const wasExpanded = expandedMarker.value === id;
-    expandedMarker.value = wasExpanded ? null : id;
-    if (!wasExpanded) {
-        nextTick(() => initMarkerMiniMap(id));
-    } else {
-        destroyMarkerMiniMap(id);
-    }
-}
-
-function toggleMarkerEnabled(id) {
-    markersData.value = markersData.value.map(m =>
-        m._id === id ? { ...m, enabled: m.enabled === false ? true : false } : m
-    );
-    emitMulti();
-    nextTick(() => refreshMultiMapMarkers());
-}
-
-function updateMarkerField(id, field, value) {
-    markersData.value = markersData.value.map(m => m._id === id ? { ...m, [field]: value } : m);
-    emitMulti();
-}
-
-function updateMarkerCoord(id, field, rawValue) {
-    const num = field === 'zoom' ? parseInt(rawValue) : parseFloat(rawValue);
-    if (isNaN(num)) return;
-    markersData.value = markersData.value.map(m => m._id === id ? { ...m, [field]: num } : m);
-    emitMulti();
-    nextTick(() => {
-        refreshMultiMapMarkers();
-        syncMarkerMiniMapPin(id);
-    });
-}
-
-function clearMarkerLocation(id) {
-    if (!window.confirm('Are you sure you want to clear this location?')) return;
-    markersData.value = markersData.value.map(m =>
-        m._id === id ? { ...m, lat: null, lng: null, address: '', zoom: defaultZoom.value } : m
-    );
-    emitMulti();
-    nextTick(() => {
-        refreshMultiMapMarkers();
-        syncMarkerMiniMapPin(id);
-    });
-}
-
-function onMarkersReordered(newList) {
-    markersData.value = newList;
-    emitMulti();
-}
-
-function clearAllMarkersData() {
-    if (!window.confirm(`Are you sure you want to clear all data from ${markersData.value.length} marker${markersData.value.length !== 1 ? 's' : ''}? Locations, addresses and infoboxes will be reset.`)) return;
-    markersData.value = markersData.value.map(m => ({
-        ...m,
-        lat: null, lng: null, address: '', zoom: defaultZoom.value,
-        infobox_title: '', infobox_content: '',
-        marker_icon_url: '', marker_icon_width: 0, marker_icon_height: 0, marker_asset_id: '',
-    }));
-    markerAssetIdsMap.value = {};
-    markerSearching.value = {};
-    markerSearchErrors.value = {};
-    emitMulti();
-    nextTick(() => {
-        refreshMultiMapMarkers();
-        Object.keys(markerMapInstances).forEach(id => syncMarkerMiniMapPin(id));
-    });
-}
-
-function clearAllMarkers() {
-    if (!window.confirm(`Are you sure you want to delete all ${markersData.value.length} marker${markersData.value.length !== 1 ? 's' : ''}? This cannot be undone.`)) return;
-    Object.keys(markerMapInstances).forEach(id => destroyMarkerMiniMap(id));
-    markerMapRefs = {};
-    markersData.value = [];
-    expandedMarker.value = null;
-    markerAssetIdsMap.value = {};
-    markerSearching.value = {};
-    markerSearchErrors.value = {};
-    markerMapType.value = {};
-    emitMulti();
-    nextTick(() => refreshMultiMapMarkers());
-}
-
-function onZoomOverrideChange(rawValue) {
-    const num = parseInt(rawValue);
-    zoomOverride.value = isNaN(num) ? null : num;
-    emitMulti();
-    if (mapInstance && zoomOverride.value) mapInstance.setZoom(zoomOverride.value);
-}
-
-// ─── Per-marker mini-map helpers ───────────────────────────────────────────────
-function setMarkerMapRef(id, el) {
-    markerMapRefs[id] = el;
-}
-
-async function initMarkerMiniMap(id) {
-    await nextTick();
-    const el = markerMapRefs[id];
-    if (!el || markerMapInstances[id]) return;
-
-    const m = markersData.value.find(x => x._id === id);
-    if (!m) return;
-
-    const lat = m.lat ?? (defaultLat.value ?? 0);
-    const lng = m.lng ?? (defaultLng.value ?? 0);
-    const zoom = m.lat != null ? (m.zoom || defaultZoom.value) : 2;
-
-    if (mapProvider.value === 'osm') {
-        const L = await loadLeaflet();
-        const mini = L.map(el, { center: [lat, lng], zoom });
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors', maxZoom: 21,
-        }).addTo(mini);
-        markerMapInstances[id] = mini;
-        if (m.lat != null) {
-            const pin = L.marker([lat, lng], { draggable: !props.readOnly }).addTo(mini);
-            markerMapMarkers[id] = pin;
-            if (!props.readOnly) {
-                pin.on('dragend', e => {
-                    const p = e.target.getLatLng();
-                    onMarkerMiniMapPick(id, p.lat, p.lng);
-                });
-            }
-        }
-        if (!props.readOnly) {
-            mini.on('click', e => {
-                placeOrMoveMarkerMiniMapPin(id, e.latlng.lat, e.latlng.lng);
-                onMarkerMiniMapPick(id, e.latlng.lat, e.latlng.lng);
-            });
-        }
-    } else {
-        await loadGoogleMapsScript(globalConfig.value.api_key);
-        const mapType = markerMapType.value[id] || 'roadmap';
-        const mini = new window.google.maps.Map(el, {
-            center: { lat, lng }, zoom, mapTypeId: mapType,
-            gestureHandling: props.readOnly ? 'none' : 'auto',
-        });
-        markerMapInstances[id] = mini;
-        if (m.lat != null) {
-            const pin = new window.google.maps.Marker({
-                position: { lat, lng }, map: mini, draggable: !props.readOnly,
-            });
-            markerMapMarkers[id] = pin;
-            if (!props.readOnly) {
-                pin.addListener('dragend', () => {
-                    const pos = pin.getPosition();
-                    onMarkerMiniMapPick(id, pos.lat(), pos.lng());
-                });
-            }
-        }
-        if (!props.readOnly) {
-            mini.addListener('click', e => {
-                placeOrMoveMarkerMiniMapPin(id, e.latLng.lat(), e.latLng.lng());
-                onMarkerMiniMapPick(id, e.latLng.lat(), e.latLng.lng());
-            });
-        }
-    }
-}
-
-function destroyMarkerMiniMap(id) {
-    const mini = markerMapInstances[id];
-    if (mini) {
-        try {
-            if (mapProvider.value === 'osm') mini.remove();
-            else if (markerMapMarkers[id]) markerMapMarkers[id].setMap(null);
-        } catch {}
-    }
-    delete markerMapInstances[id];
-    delete markerMapMarkers[id];
-    delete markerMapRefs[id];
-}
-
-function placeOrMoveMarkerMiniMapPin(id, lat, lng) {
-    if (mapProvider.value === 'osm') {
-        const L = getLeaflet();
-        if (!markerMapMarkers[id]) {
-            const pin = L.marker([lat, lng], { draggable: !props.readOnly }).addTo(markerMapInstances[id]);
-            markerMapMarkers[id] = pin;
-            if (!props.readOnly) {
-                pin.on('dragend', e => {
-                    const p = e.target.getLatLng();
-                    onMarkerMiniMapPick(id, p.lat, p.lng);
-                });
-            }
-        } else {
-            markerMapMarkers[id].setLatLng([lat, lng]);
-        }
-        markerMapInstances[id].panTo([lat, lng]);
-    } else {
-        if (!markerMapMarkers[id]) {
-            const pin = new window.google.maps.Marker({
-                position: { lat, lng }, map: markerMapInstances[id], draggable: !props.readOnly,
-            });
-            markerMapMarkers[id] = pin;
-            if (!props.readOnly) {
-                pin.addListener('dragend', () => {
-                    const pos = pin.getPosition();
-                    onMarkerMiniMapPick(id, pos.lat(), pos.lng());
-                });
-            }
-        } else {
-            markerMapMarkers[id].setPosition({ lat, lng });
-        }
-        markerMapInstances[id].panTo({ lat, lng });
-    }
-}
-
-function syncMarkerMiniMapPin(id) {
-    const m = markersData.value.find(x => x._id === id);
-    if (!m || m.lat == null || !markerMapInstances[id]) return;
-    placeOrMoveMarkerMiniMapPin(id, m.lat, m.lng);
-    if (m.zoom) markerMapInstances[id].setZoom(m.zoom);
-}
-
-async function onMarkerMiniMapPick(id, lat, lng) {
-    markersData.value = markersData.value.map(m => m._id === id ? { ...m, lat, lng } : m);
-    emitMulti();
-    refreshMultiMapMarkers();
-    try {
-        let address = null;
-        if (mapProvider.value === 'osm') {
-            const data = await postCp('google-maps/reverse-geocode', { lat, lng, provider: 'osm' }, _axios);
-            if (data.success) address = data.result.address;
-        } else {
-            address = await googleReverseGeocode(lat, lng);
-        }
-        if (address) {
-            markersData.value = markersData.value.map(m => m._id === id ? { ...m, address } : m);
-            emitMulti();
-        }
-    } catch {}
-}
-
-function setMarkerMapType(id, type) {
-    markerMapType.value = { ...markerMapType.value, [id]: type };
-    const mini = markerMapInstances[id];
-    if (mini && window.google?.maps) {
-        mini.setMapTypeId(type);
-    }
-}
-
-// ─── Bulk apply handler ────────────────────────────────────────────────────────
-function onBulkApply({ template: t, fields, scope }) {
-    const targets = scope === 'active'
-        ? markersData.value.filter(m => m.enabled !== false)
-        : [...markersData.value];
-    const targetIds = new Set(targets.map(x => x._id));
-    markersData.value = markersData.value.map(m => {
-        if (!targetIds.has(m._id)) return m;
-        const patch = {};
-        if (fields.zoom && t.zoom) patch.zoom = t.zoom;
-        if (fields.infobox) {
-            patch.infobox_title   = t.infobox_title;
-            patch.infobox_content = t.infobox_content;
-        }
-        if (fields.icon) {
-            patch.marker_icon_url    = t.marker_icon_url;
-            patch.marker_icon_width  = t.marker_icon_width;
-            patch.marker_icon_height = t.marker_icon_height;
-            patch.marker_asset_id    = t.marker_asset_id;
-        }
-        return { ...m, ...patch };
-    });
-    if (fields.icon) {
-        const newMap = { ...markerAssetIdsMap.value };
-        targets.forEach(m => {
-            newMap[m._id] = t.marker_asset_id ? [t.marker_asset_id] : [];
-        });
-        markerAssetIdsMap.value = newMap;
-    }
-    emitMulti();
-    editMode.value = 'individual';
-    if (_bulkToastTimer) clearTimeout(_bulkToastTimer);
-    bulkToast.value = `\u2713 ${targets.length} marker${targets.length !== 1 ? 's' : ''} updated`;
-    _bulkToastTimer = setTimeout(() => { bulkToast.value = ''; }, 4000);
-}
-
-// ─── Search state (single) ─────────────────────────────────────────────────────
-const searchQuery = ref('');
-const isSearching = ref(false);
-const searchError = ref('');
-let _searchDebounceTimer = null;
-
-watch(searchQuery, (q) => {
-    clearTimeout(_searchDebounceTimer);
-    if (!q.trim()) { searchError.value = ''; return; }
-    _searchDebounceTimer = setTimeout(search, 500);
-});
-
-// ─── Map state ─────────────────────────────────────────────────────────────────
+// ─── Layer 4: Map rendering ───────────────────────────────────────────────────
 const mapEl = ref(null);
-let mapInstance = null;
-let markerInstance = null;
-let multiMarkerInstances = [];
-let markerClustererInstance = null;
-const mapReady = ref(false);
+const map = useMapInit({ props, mapEl, config });
 
-// ─── Asset picker (single) ─────────────────────────────────────────────────────
-const markerAssetIds = ref(
-    internalValue.value.marker_asset_id ? [internalValue.value.marker_asset_id] : []
-);
+const singleRender = !isMulti.value
+    ? useSingleMarkerRender({ props, map, single, config, markerSearch })
+    : null;
 
+const multiRender = isMulti.value
+    ? useMultiMarkerRender({ props, map, multi, config })
+    : null;
+
+const miniMaps = isMulti.value
+    ? useMarkerMiniMaps({ props, config, multi, onPick: onMarkerMiniMapPick })
+    : null;
+
+// Surface mini-map helpers as top-level identifiers for template bindings.
+const markerMapType   = miniMaps?.markerMapType   ?? ref({});
+const setMarkerMapRef = miniMaps?.setMarkerMapRef ?? (() => {});
+const setMarkerMapType= miniMaps?.setMarkerMapType?? (() => {});
+
+// Wire the lazy callbacks now that every composable exists.
+cbs.refreshMap         = multiRender?.refreshMultiMapMarkers ?? (() => {});
+cbs.initMiniMap        = miniMaps?.initMarkerMiniMap         ?? (() => {});
+cbs.destroyMiniMap     = miniMaps?.destroyMarkerMiniMap      ?? (() => {});
+cbs.syncMiniMap        = miniMaps?.syncMarkerMiniMapPin      ?? (() => {});
+cbs.destroyAllMiniMaps = miniMaps?.destroyAllMiniMaps        ?? (() => {});
+cbs.setMapZoom         = map.setMapZoom;
+
+// ─── Single-marker asset picker ───────────────────────────────────────────────
 const markerAssetMeta = computed(() => ({
     container: props.meta?.containers?.[0] ?? null,
     data: null,
@@ -805,340 +433,21 @@ async function onMarkerAssetUpdate(ids) {
         update({ ...internalValue.value, marker_icon_url: '', marker_asset_id: '' });
         return;
     }
-    try {
-        const assets = await postCp('assets-fieldtype', { assets: ids }, _axios);
-        if (assets?.[0]?.url) {
-            update({ ...internalValue.value, marker_icon_url: assets[0].url, marker_asset_id: ids[0] });
-        }
-    } catch (e) {
-        console.error('[GoogleMapsFieldtype] Asset resolve failed:', e);
-    }
+    const url = await assetResolver.resolveUrl(ids[0]);
+    if (url) update({ ...internalValue.value, marker_icon_url: url, marker_asset_id: ids[0] });
 }
 
-async function onMultiMarkerAssetUpdate(markerId, ids) {
-    markerAssetIdsMap.value = { ...markerAssetIdsMap.value, [markerId]: ids ?? [] };
-    if (!ids?.length) {
-        markersData.value = markersData.value.map(m =>
-            m._id === markerId ? { ...m, marker_icon_url: '', marker_asset_id: '' } : m
-        );
-        emitMulti();
-        return;
-    }
-    try {
-        const assets = await postCp('assets-fieldtype', { assets: ids }, _axios);
-        if (assets?.[0]?.url) {
-            markersData.value = markersData.value.map(m =>
-                m._id === markerId ? { ...m, marker_icon_url: assets[0].url, marker_asset_id: ids[0] } : m
-            );
-            emitMulti();
-        }
-    } catch (e) {
-        console.error('[GoogleMapsFieldtype] Multi asset resolve failed:', e);
-    }
-}
+// ─── Single-marker search ─────────────────────────────────────────────────────
+const searchQuery = ref('');
+const isSearching = ref(false);
+const searchError = ref('');
+let _searchDebounceTimer = null;
 
-// ─── Map init ──────────────────────────────────────────────────────────────────
-async function initMap() {
-    if (!mapEl.value) return;
-    try {
-        if (mapProvider.value === 'osm') await initLeaflet();
-        else await initGoogleMaps();
-        mapReady.value = true;
-    } catch (err) {
-        console.error('[GoogleMapsFieldtype] Map init failed:', err);
-    }
-}
-
-async function initLeaflet() {
-    const L = await loadLeaflet();
-
-    delete L.Icon.Default.prototype._getIconUrl;
-    L.Icon.Default.mergeOptions({
-        iconUrl:       new URL('leaflet/dist/images/marker-icon.png', import.meta.url).href,
-        iconRetinaUrl: new URL('leaflet/dist/images/marker-icon-2x.png', import.meta.url).href,
-        shadowUrl:     new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).href,
-    });
-
-    const lat  = internalValue.value.lat  ?? (defaultLat.value ?? 0);
-    const lng  = internalValue.value.lng  ?? (defaultLng.value ?? 0);
-    const zoom = hasLocation.value ? (internalValue.value.zoom || defaultZoom.value) : 2;
-
-    mapInstance = L.map(mapEl.value, { center: [lat, lng], zoom });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 21,
-    }).addTo(mapInstance);
-
-    if (isMulti.value) {
-        refreshMultiMapMarkersLeaflet();
-        if (!props.readOnly) {
-            mapInstance.on('click', e => addMarkerAtPosition(e.latlng.lat, e.latlng.lng));
-        }
-        return;
-    }
-
-    if (hasLocation.value) {
-        markerInstance = L.marker([lat, lng], { draggable: !props.readOnly }).addTo(mapInstance);
-        if (!props.readOnly) {
-            markerInstance.on('dragend', e => {
-                const p = e.target.getLatLng();
-                onMapPick(p.lat, p.lng);
-            });
-        }
-    }
-
-    if (props.readOnly) {
-        mapInstance.dragging.disable();
-        mapInstance.scrollWheelZoom.disable();
-        mapInstance.touchZoom.disable();
-        mapInstance.doubleClickZoom.disable();
-        mapInstance.keyboard.disable();
-        mapInstance.boxZoom.disable();
-        return;
-    }
-
-    mapInstance.on('click', e => {
-        placeOrMoveLeafletMarker(e.latlng.lat, e.latlng.lng);
-        onMapPick(e.latlng.lat, e.latlng.lng);
-    });
-}
-
-async function initGoogleMaps() {
-    if (!globalConfig.value.api_key) {
-        mapEl.value.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#6b7280;font-size:0.875rem;text-align:center;padding:1rem;">No Google Maps API key configured.<br>Add <code>GOOGLE_MAPS_API_KEY</code> to your <code>.env</code>,<br>or switch to OpenStreetMap in Tools → Google Maps.</div>';
-        return;
-    }
-    await loadGoogleMapsScript(globalConfig.value.api_key);
-
-    const lat  = internalValue.value.lat  ?? (defaultLat.value ?? 0);
-    const lng  = internalValue.value.lng  ?? (defaultLng.value ?? 0);
-    const zoom = hasLocation.value ? (internalValue.value.zoom || defaultZoom.value) : 2;
-
-    mapInstance = new window.google.maps.Map(mapEl.value, {
-        center: { lat, lng }, zoom,
-        mapTypeId: globalConfig.value.map_type || 'roadmap',
-        gestureHandling: props.readOnly ? 'none' : 'auto',
-    });
-
-    if (isMulti.value) {
-        refreshMultiMapMarkersGoogle();
-        if (!props.readOnly) {
-            mapInstance.addListener('click', e => addMarkerAtPosition(e.latLng.lat(), e.latLng.lng()));
-        }
-        return;
-    }
-
-    if (hasLocation.value) {
-        markerInstance = new window.google.maps.Marker({
-            position: { lat, lng }, map: mapInstance, draggable: !props.readOnly,
-        });
-        if (!props.readOnly) {
-            markerInstance.addListener('dragend', () => {
-                const pos = markerInstance.getPosition();
-                onMapPick(pos.lat(), pos.lng());
-            });
-        }
-    }
-
-    if (props.readOnly) return;
-
-    mapInstance.addListener('click', e => {
-        placeOrMoveGoogleMarker(e.latLng.lat(), e.latLng.lng());
-        onMapPick(e.latLng.lat(), e.latLng.lng());
-    });
-}
-
-// ─── Multi-marker map helpers ──────────────────────────────────────────────────
-function refreshMultiMapMarkers() {
-    if (!mapInstance) return;
-    if (mapProvider.value === 'osm') refreshMultiMapMarkersLeaflet();
-    else refreshMultiMapMarkersGoogle();
-}
-
-function refreshMultiMapMarkersLeaflet() {
-    const L = getLeaflet();
-    multiMarkerInstances.forEach(m => { try { m.remove(); } catch {} });
-    multiMarkerInstances = [];
-
-    const valid = markersData.value.filter(m => m.lat != null && m.lng != null && m.enabled !== false);
-    if (!valid.length) return;
-
-    valid.forEach(m => {
-        const marker = L.marker([m.lat, m.lng], { draggable: !props.readOnly }).addTo(mapInstance);
-        if (!props.readOnly) {
-            const id = m._id;
-            marker.on('dragend', e => {
-                const p = e.target.getLatLng();
-                onMultiMapPick(id, p.lat, p.lng);
-            });
-        }
-        multiMarkerInstances.push(marker);
-    });
-
-    if (valid.length === 1) {
-        mapInstance.setView([valid[0].lat, valid[0].lng], zoomOverride.value || defaultZoom.value);
-    } else {
-        const group = L.featureGroup(multiMarkerInstances);
-        try { mapInstance.fitBounds(group.getBounds(), { padding: [40, 40] }); } catch {}
-        if (zoomOverride.value) mapInstance.setZoom(zoomOverride.value);
-    }
-}
-
-function refreshMultiMapMarkersGoogle() {
-    // Destroy existing clusterer
-    if (markerClustererInstance) {
-        markerClustererInstance.clearMarkers();
-        markerClustererInstance.setMap(null);
-        markerClustererInstance = null;
-    }
-    multiMarkerInstances.forEach(m => { try { m.setMap(null); } catch {} });
-    multiMarkerInstances = [];
-
-    const valid = markersData.value.filter(m => m.lat != null && m.lng != null && m.enabled !== false);
-    if (!valid.length) return;
-
-    const clustering = !!props.config.enable_clustering;
-    const bounds = new window.google.maps.LatLngBounds();
-
-    valid.forEach(m => {
-        const marker = new window.google.maps.Marker({
-            position: { lat: m.lat, lng: m.lng },
-            // When clustering, don't attach to map directly — clusterer handles that
-            map: clustering ? null : mapInstance,
-            draggable: !props.readOnly,
-        });
-        if (!props.readOnly) {
-            const id = m._id;
-            marker.addListener('dragend', () => {
-                const pos = marker.getPosition();
-                onMultiMapPick(id, pos.lat(), pos.lng());
-            });
-        }
-        bounds.extend({ lat: m.lat, lng: m.lng });
-        multiMarkerInstances.push(marker);
-    });
-
-    if (clustering) {
-        markerClustererInstance = new MarkerClusterer({
-            map: mapInstance,
-            markers: multiMarkerInstances,
-        });
-    }
-
-    if (valid.length === 1) {
-        mapInstance.setCenter({ lat: valid[0].lat, lng: valid[0].lng });
-        mapInstance.setZoom(zoomOverride.value || defaultZoom.value);
-    } else {
-        mapInstance.fitBounds(bounds);
-        if (zoomOverride.value) mapInstance.setZoom(zoomOverride.value);
-    }
-}
-
-async function addMarkerAtPosition(lat, lng) {
-    const m = wrapMarker({ lat, lng });
-    markersData.value = [...markersData.value, m];
-    expandedMarker.value = m._id;
-    emitMulti();
-    await nextTick();
-    refreshMultiMapMarkers();
-    try {
-        let address = null;
-        if (mapProvider.value === 'osm') {
-            const data = await postCp('google-maps/reverse-geocode', { lat, lng, provider: 'osm' }, _axios);
-            if (data.success) address = data.result.address;
-        } else {
-            address = await googleReverseGeocode(lat, lng);
-        }
-        if (address) {
-            markersData.value = markersData.value.map(mk => mk._id === m._id ? { ...mk, address } : mk);
-            emitMulti();
-        }
-    } catch {}
-}
-
-async function onMultiMapPick(markerId, lat, lng) {
-    markersData.value = markersData.value.map(m => m._id === markerId ? { ...m, lat, lng } : m);
-    emitMulti();
-    try {
-        let address = null;
-        if (mapProvider.value === 'osm') {
-            const data = await postCp('google-maps/reverse-geocode', { lat, lng, provider: 'osm' }, _axios);
-            if (data.success) address = data.result.address;
-        } else {
-            address = await googleReverseGeocode(lat, lng);
-        }
-        if (address) {
-            markersData.value = markersData.value.map(m => m._id === markerId ? { ...m, address } : m);
-            emitMulti();
-        }
-    } catch {}
-}
-
-// ─── Single-mode marker helpers ────────────────────────────────────────────────
-function placeOrMoveLeafletMarker(lat, lng) {
-    if (!markerInstance) {
-        const L = getLeaflet();
-        markerInstance = L.marker([lat, lng], { draggable: true }).addTo(mapInstance);
-        markerInstance.on('dragend', e => {
-            const p = e.target.getLatLng();
-            onMapPick(p.lat, p.lng);
-        });
-    } else {
-        markerInstance.setLatLng([lat, lng]);
-    }
-}
-
-function placeOrMoveGoogleMarker(lat, lng) {
-    if (!markerInstance) {
-        markerInstance = new window.google.maps.Marker({
-            position: { lat, lng }, map: mapInstance, draggable: true,
-        });
-        markerInstance.addListener('dragend', () => {
-            const pos = markerInstance.getPosition();
-            onMapPick(pos.lat(), pos.lng());
-        });
-    } else {
-        markerInstance.setPosition({ lat, lng });
-    }
-}
-
-function moveMarker(lat, lng) {
-    if (!mapInstance || !markerInstance) return;
-    if (mapProvider.value === 'osm') {
-        markerInstance.setLatLng([lat, lng]);
-        mapInstance.panTo([lat, lng]);
-    } else {
-        const pos = new window.google.maps.LatLng(lat, lng);
-        markerInstance.setPosition(pos);
-        mapInstance.panTo(pos);
-    }
-}
-
-function setMapZoom(zoom) {
-    if (!mapInstance) return;
-    mapInstance.setZoom(zoom);
-}
-
-// ─── Single-mode actions ───────────────────────────────────────────────────────
-let _fromMapInteraction = false;
-
-async function onMapPick(lat, lng) {
-    _fromMapInteraction = true;
-    update({ ...internalValue.value, lat, lng });
-    await nextTick();
-    _fromMapInteraction = false;
-
-    try {
-        let address = null;
-        if (mapProvider.value === 'osm') {
-            const data = await postCp('google-maps/reverse-geocode', { lat, lng, provider: 'osm' }, _axios);
-            if (data.success) address = data.result.address;
-        } else {
-            address = await googleReverseGeocode(lat, lng);
-        }
-        if (address) update({ ...internalValue.value, lat, lng, address });
-    } catch {}
-}
+watch(searchQuery, (q) => {
+    clearTimeout(_searchDebounceTimer);
+    if (!q.trim()) { searchError.value = ''; return; }
+    _searchDebounceTimer = setTimeout(search, 500);
+});
 
 async function search() {
     clearTimeout(_searchDebounceTimer);
@@ -1148,185 +457,27 @@ async function search() {
     searchError.value = '';
 
     try {
-        let lat, lng, address;
-        if (mapProvider.value === 'osm') {
-            const data = await postCp('google-maps/geocode', { address: q, provider: 'osm' }, _axios);
-            if (!data.success) { searchError.value = data.message || 'Location not found.'; return; }
-            ({ lat, lng, address } = data.result);
-        } else {
-            const result = await googleGeocode(q);
-            if (!result) { searchError.value = 'No results found.'; return; }
-            ({ lat, lng, address } = result);
-        }
-
+        const { lat, lng, address } = await markerSearch.geocode(q);
         const currentZoom = Math.max(internalValue.value.zoom || defaultZoom.value, 12);
         update({ ...internalValue.value, lat, lng, address, zoom: currentZoom });
         await nextTick();
-
-        if (mapProvider.value === 'osm' && mapInstance) {
-            placeOrMoveLeafletMarker(lat, lng);
-            mapInstance.setView([lat, lng], currentZoom);
-        } else if (mapInstance) {
-            placeOrMoveGoogleMarker(lat, lng);
-            mapInstance.panTo({ lat, lng });
-            if (mapInstance.getZoom() < 12) mapInstance.setZoom(12);
-        }
+        // The zoom watcher handles zoom; placeAndPan ensures the marker exists
+        // AND the map is centred — the lat/lng watcher's panTo path is a no-op
+        // on the very first search because markerInstance doesn't exist yet.
+        singleRender?.placeAndPan(lat, lng);
     } catch (err) {
-        searchError.value = err?.message || 'Search failed. Please try again.';
+        searchError.value = err?.userMessage || err?.message || 'Search failed.';
     } finally {
         isSearching.value = false;
     }
 }
 
-// ─── Multi-mode search ─────────────────────────────────────────────────────────
-async function searchMarker(markerId, query) {
-    const q = (query || '').trim();
-    if (!q || markerSearching.value[markerId]) return;
-
-    markerSearching.value = { ...markerSearching.value, [markerId]: true };
-    markerSearchErrors.value = { ...markerSearchErrors.value, [markerId]: '' };
-
-    try {
-        let lat, lng, address;
-        if (mapProvider.value === 'osm') {
-            const data = await postCp('google-maps/geocode', { address: q, provider: 'osm' }, _axios);
-            if (!data.success) {
-                markerSearchErrors.value = { ...markerSearchErrors.value, [markerId]: data.message || 'Location not found.' };
-                return;
-            }
-            ({ lat, lng, address } = data.result);
-        } else {
-            const result = await googleGeocode(q);
-            if (!result) {
-                markerSearchErrors.value = { ...markerSearchErrors.value, [markerId]: 'No results found.' };
-                return;
-            }
-            ({ lat, lng, address } = result);
-        }
-
-        markersData.value = markersData.value.map(m =>
-            m._id === markerId ? { ...m, lat, lng, address } : m
-        );
-        emitMulti();
-        await nextTick();
-        refreshMultiMapMarkers();
-    } catch (err) {
-        markerSearchErrors.value = { ...markerSearchErrors.value, [markerId]: err?.message || 'Search failed.' };
-    } finally {
-        markerSearching.value = { ...markerSearching.value, [markerId]: false };
-    }
-}
-
-// ─── Coord inputs (single) ─────────────────────────────────────────────────────
-function updateCoord(field, rawValue) {
-    const num = field === 'zoom' ? parseInt(rawValue) : parseFloat(rawValue);
-    if (isNaN(num)) return;
-    update({ ...internalValue.value, [field]: num });
-}
-
 function clearLocation() {
-    if (!window.confirm('Are you sure you want to clear this location?')) return;
-    update({
-        lat: null, lng: null, address: '', zoom: defaultZoom.value,
-        infobox_title: '', infobox_content: '',
-        marker_icon_url: '', marker_icon_width: 0, marker_icon_height: 0, marker_asset_id: '',
+    single.clearLocation(() => {
+        searchQuery.value = '';
+        searchError.value = '';
     });
-    markerAssetIds.value = [];
-    searchQuery.value = '';
-    searchError.value = '';
 }
-
-// ─── Watchers (single only) ────────────────────────────────────────────────────
-watch(
-    () => [internalValue.value.lat, internalValue.value.lng],
-    ([lat, lng]) => {
-        if (!mapReady.value || lat == null || lng == null || _fromMapInteraction || isMulti.value) return;
-        moveMarker(lat, lng);
-    }
-);
-
-watch(
-    () => internalValue.value.zoom,
-    zoom => {
-        if (!mapReady.value || !zoom || isMulti.value) return;
-        setMapZoom(zoom);
-    }
-);
-
-// ─── Lifecycle ─────────────────────────────────────────────────────────────────
-
-let _mapObserver = null;
-
-function tryInitMapWhenVisible(el) {
-    if (!el || mapReady.value) return;
-    // Always use IntersectionObserver — it accounts for overflow clipping from
-    // ancestor elements (e.g. Bard sets that collapse via max-height/overflow).
-    // offsetWidth/offsetHeight only reflect the element's own box and return > 0
-    // even when the element is invisible inside a clipped parent, causing the
-    // map to be initialised into a zero-visible-area container (grey box).
-    // The observer fires synchronously with the current state, so there is no
-    // latency penalty when the element is already visible.
-    if (_mapObserver) _mapObserver.disconnect();
-    _mapObserver = new IntersectionObserver(
-        (entries) => {
-            const entry = entries[0];
-            if (entry.isIntersecting && entry.intersectionRect.width > 0 && !mapReady.value) {
-                _mapObserver.disconnect();
-                _mapObserver = null;
-                initMap();
-            }
-        },
-        { threshold: 0 }
-    );
-    _mapObserver.observe(el);
-}
-
-// Watch the mapEl ref so the map initialises whenever the element actually
-// enters the DOM (handles Statamic accordions / tabs / lazy containers where
-// mapEl.value is null at onMounted time).
-watch(mapEl, async (el) => {
-    if (el && !mapReady.value) {
-        await nextTick();
-        tryInitMapWhenVisible(el);
-    }
-});
-
-onMounted(async () => {
-    await nextTick();
-    tryInitMapWhenVisible(mapEl.value);
-});
-
-onBeforeUnmount(() => {
-    if (_mapObserver) { _mapObserver.disconnect(); _mapObserver = null; }
-    // Clean up per-marker mini-maps
-    Object.keys(markerMapInstances).forEach(id => destroyMarkerMiniMap(id));
-    markerMapRefs = {};
-
-    if (markerClustererInstance) {
-        try {
-            markerClustererInstance.clearMarkers();
-            markerClustererInstance.setMap(null);
-        } catch (err) {
-            console.warn('[GoogleMapsFieldtype] clusterer teardown failed:', err?.message);
-        }
-        markerClustererInstance = null;
-    }
-    multiMarkerInstances.forEach(m => {
-        try {
-            if (mapProvider.value === 'osm') m.remove();
-            else m.setMap(null);
-        } catch (err) {
-            console.warn('[GoogleMapsFieldtype] marker teardown failed:', err?.message);
-        }
-    });
-    multiMarkerInstances = [];
-    if (mapProvider.value === 'osm' && mapInstance) {
-        try { mapInstance.remove(); }
-        catch (err) { console.warn('[GoogleMapsFieldtype] map teardown failed:', err?.message); }
-    }
-    mapInstance = null;
-    markerInstance = null;
-});
 </script>
 
 <!--
