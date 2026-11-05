@@ -59,7 +59,7 @@ class GeocodingController extends Controller
             $message = match ($status) {
                 'ZERO_RESULTS'                   => 'No results found.',
                 'REQUEST_DENIED'                 => 'Google Geocoding API request denied. Ensure the Geocoding API is enabled in Google Cloud Console and the API key is not restricted to browser requests only.',
-                'OVER_QUERY_LIMIT', 'OVER_DAILY_LIMIT' => 'Google Geocoding quota exceeded. Try again later, or switch to OpenStreetMap in Tools → Google Maps.',
+                'OVER_QUERY_LIMIT', 'OVER_DAILY_LIMIT' => 'Google Geocoding quota exceeded. Try again later, or switch to OpenStreetMap in the addon settings (Tools, Addons, Alt Google Maps).',
                 'INVALID_REQUEST'                => 'Invalid address.',
                 default                          => "Geocoding failed ({$status}). Check your Google API key configuration.",
             };

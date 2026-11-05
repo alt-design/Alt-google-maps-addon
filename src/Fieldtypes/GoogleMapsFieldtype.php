@@ -479,7 +479,7 @@ class GoogleMapsFieldtype extends Fieldtype
             ],
             'map_provider' => [
                 'display'      => 'Map Provider',
-                'instructions' => 'Override the global map provider for this field. Leave blank to use the site default (Tools → Google Maps).',
+                'instructions' => 'Override the global map provider for this field. Leave blank to use the site default from the addon settings (Tools, Addons, Alt Google Maps).',
                 'type'         => 'select',
                 'options'      => [
                     ''      => 'Use site default',
@@ -491,7 +491,7 @@ class GoogleMapsFieldtype extends Fieldtype
             ],
             'default_zoom' => [
                 'display'      => 'Default Zoom',
-                'instructions' => 'Leave blank to use the site default (Tools → Google Maps).',
+                'instructions' => 'Leave blank to use the site default from the addon settings (Tools, Addons, Alt Google Maps).',
                 'type'         => 'integer',
                 'width'        => 33,
             ],
@@ -516,7 +516,7 @@ class GoogleMapsFieldtype extends Fieldtype
             ],
             'default_infobox_title' => [
                 'display'      => 'Default Infobox Title',
-                'instructions' => 'Shown as the popup title when the marker is clicked. Overrides the global default (Tools → Google Maps) for this field only. Leave blank to inherit.',
+                'instructions' => 'Shown as the popup title when the marker is clicked. Overrides the default in the addon settings (Tools, Addons, Alt Google Maps) for this field only. Leave blank to inherit.',
                 'type'         => 'text',
                 'width'        => 100,
             ],

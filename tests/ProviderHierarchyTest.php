@@ -187,3 +187,32 @@ it('sanitises infobox values again when augmenting stored data', function () {
     expect($marker['infobox_title'])->toBe('Office');
     expect($marker['infobox_content'])->not->toContain('onload');
 });
+
+it('re-encodes markers passed to the multi tag so they cannot close the script block', function () {
+    config(['alt-google-maps.map_provider' => 'osm']);
+    $markers = json_encode([[
+        'lat' => 53.48,
+        'lng' => -2.24,
+        'infobox_title' => '</script><script>alert(1)</script>',
+        'infobox_content' => '<p>Open</p><img src=x onerror=alert(1)>',
+        'iconJson' => '</script><script>alert(2)</script>',
+    ]], JSON_UNESCAPED_SLASHES);
+
+    $out = tag(['markers' => $markers])->multi();
+
+    expect($out)->not->toContain('</script><script>alert(1)')
+        ->and($out)->not->toContain('</script><script>alert(2)')
+        ->and($out)->not->toContain('onerror=alert')
+        ->and($out)->toContain('53.48');
+});
+
+it('points editors to the addon settings page in field instructions and errors', function () {
+    $files = [
+        __DIR__.'/../src/Fieldtypes/GoogleMapsFieldtype.php',
+        __DIR__.'/../src/Http/Controllers/GeocodingController.php',
+    ];
+
+    foreach ($files as $file) {
+        expect(file_get_contents($file))->not->toContain('Tools → Google Maps');
+    }
+});
