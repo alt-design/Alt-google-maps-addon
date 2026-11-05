@@ -27,7 +27,7 @@ class GoogleMapTag extends Tags
         $markerIconWidth = (int) $this->params->get('marker_icon_width', config('alt-google-maps.marker_icon_width', 40));
         $markerIconHeight= (int) $this->params->get('marker_icon_height', config('alt-google-maps.marker_icon_height', 40));
 
-        if ($lat === null || $lng === null) {
+        if (! is_numeric($lat) || ! is_numeric($lng)) {
             return '<!-- google_map: lat and lng are required -->';
         }
 

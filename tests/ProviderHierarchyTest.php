@@ -85,6 +85,15 @@ it('warns when coords are missing in tag', function () {
     expect(tag([])->index())->toContain('lat and lng are required');
 });
 
+it('renders no map when coords are blank or not numbers', function (array $params) {
+    config(['alt-google-maps.map_provider' => 'osm']);
+    expect(tag($params)->index())->toContain('lat and lng are required');
+})->with([
+    'blank strings' => [['lat' => '', 'lng' => '']],
+    'blank lng' => [['lat' => '53.48', 'lng' => '']],
+    'not numbers' => [['lat' => 'north', 'lng' => 'west']],
+]);
+
 it('exposes per-field map_height in augment', function () {
     config(['alt-google-maps.map_height' => 420]);
     $ft = (new GoogleMapsFieldtype)->setField(new \Statamic\Fields\Field('map', [
