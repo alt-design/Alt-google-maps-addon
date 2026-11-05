@@ -3,7 +3,7 @@ import laravel from 'laravel-vite-plugin';
 import statamic from '@statamic/cms/vite-plugin';
 
 export default defineConfig({
-    base: '/vendor/alt-design/alt-google-maps/build/',
+    base: '/vendor/alt-google-maps/build/',
     plugins: [
         statamic(),
         laravel({
