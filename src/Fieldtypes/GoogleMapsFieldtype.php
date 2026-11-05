@@ -253,17 +253,17 @@ class GoogleMapsFieldtype extends Fieldtype
     {
         // Multi-marker mode
         if ($this->config('enable_multiple')) {
-            if (is_null($data) || empty($data['markers'])) return '—';
+            if (is_null($data) || empty($data['markers'])) return 'Not set';
             $count = count($data['markers']);
             $first = $data['markers'][0] ?? [];
             $label = ! empty($first['address'])
                 ? (strlen($first['address']) > 40 ? substr($first['address'], 0, 40) . '…' : $first['address'])
-                : (isset($first['lat']) ? number_format($first['lat'], 4) . ', ' . number_format($first['lng'], 4) : '—');
+                : (isset($first['lat']) ? number_format($first['lat'], 4) . ', ' . number_format($first['lng'], 4) : 'Not set');
             return $count > 1 ? "{$label} (+".($count - 1)." more)" : $label;
         }
 
         if (is_null($data) || empty($data['lat'])) {
-            return '—';
+            return 'Not set';
         }
 
         if (! empty($data['address'])) {
