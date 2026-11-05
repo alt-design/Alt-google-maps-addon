@@ -15,16 +15,16 @@ class GoogleMapTag extends Tags
     {
         $lat      = $this->params->get('lat');
         $lng      = $this->params->get('lng');
-        $zoom     = (int) $this->params->get('zoom', config('statamic-google-maps.defaults.zoom', 13));
-        $height   = (int) $this->params->get('height', config('statamic-google-maps.map_height', 420));
+        $zoom     = (int) $this->params->get('zoom', config('alt-google-maps.defaults.zoom', 13));
+        $height   = (int) $this->params->get('height', config('alt-google-maps.map_height', 420));
         $width    = $this->params->get('width', '100%');
         $id       = $this->params->get('id', 'gmap-' . uniqid());
-        $provider = $this->params->get('provider', config('statamic-google-maps.map_provider', 'google'));
-        $key             = config('statamic-google-maps.api_key', '');
-        $mapType         = $this->params->get('map_type', config('statamic-google-maps.map_type', 'roadmap'));
-        $markerIconUrl   = $this->params->get('marker_icon', config('statamic-google-maps.marker_icon_url', ''));
-        $markerIconWidth = (int) $this->params->get('marker_icon_width', config('statamic-google-maps.marker_icon_width', 40));
-        $markerIconHeight= (int) $this->params->get('marker_icon_height', config('statamic-google-maps.marker_icon_height', 40));
+        $provider = $this->params->get('provider', config('alt-google-maps.map_provider', 'google'));
+        $key             = config('alt-google-maps.api_key', '');
+        $mapType         = $this->params->get('map_type', config('alt-google-maps.map_type', 'roadmap'));
+        $markerIconUrl   = $this->params->get('marker_icon', config('alt-google-maps.marker_icon_url', ''));
+        $markerIconWidth = (int) $this->params->get('marker_icon_width', config('alt-google-maps.marker_icon_width', 40));
+        $markerIconHeight= (int) $this->params->get('marker_icon_height', config('alt-google-maps.marker_icon_height', 40));
 
         if ($lat === null || $lng === null) {
             return '<!-- google_map: lat and lng are required -->';
@@ -34,7 +34,7 @@ class GoogleMapTag extends Tags
             return '<!-- google_map: GOOGLE_MAPS_API_KEY not configured -->';
         }
 
-        return view('statamic-google-maps::map', [
+        return view('alt-google-maps::map', [
             'lat'               => (float) $lat,
             'lng'               => (float) $lng,
             'zoom'              => $zoom,
@@ -60,13 +60,13 @@ class GoogleMapTag extends Tags
         $clustering   = filter_var($this->params->get('clustering', false), FILTER_VALIDATE_BOOLEAN);
         $clusterColor = (string) $this->params->get('cluster_color', '');
         $zoom        = $this->params->get('zoom') !== null ? (int) $this->params->get('zoom') : null;
-        $height      = (int) $this->params->get('height', config('statamic-google-maps.map_height', 420));
+        $height      = (int) $this->params->get('height', config('alt-google-maps.map_height', 420));
         $width       = $this->params->get('width', '100%');
         $id          = $this->params->get('id', 'gmap-multi-' . uniqid());
-        $provider    = $this->params->get('provider', config('statamic-google-maps.map_provider', 'google'));
-        $key         = config('statamic-google-maps.api_key', '');
-        $mapType     = $this->params->get('map_type', config('statamic-google-maps.map_type', 'roadmap'));
-        $defaultZoom = (int) $this->params->get('default_zoom', config('statamic-google-maps.defaults.zoom', 13));
+        $provider    = $this->params->get('provider', config('alt-google-maps.map_provider', 'google'));
+        $key         = config('alt-google-maps.api_key', '');
+        $mapType     = $this->params->get('map_type', config('alt-google-maps.map_type', 'roadmap'));
+        $defaultZoom = (int) $this->params->get('default_zoom', config('alt-google-maps.defaults.zoom', 13));
 
         // Decode to validate; pass raw JSON string to the view
         $markers = json_decode($markersJson, true);
@@ -78,7 +78,7 @@ class GoogleMapTag extends Tags
             return '<!-- google_map:multi: GOOGLE_MAPS_API_KEY not configured -->';
         }
 
-        return view('statamic-google-maps::map-multi', [
+        return view('alt-google-maps::map-multi', [
             'markers_json'  => $markersJson,
             'clustering'    => $clustering,
             'cluster_color' => $clusterColor,
@@ -104,7 +104,7 @@ class GoogleMapTag extends Tags
         $zoom = (int) $this->params->get('zoom', 13);
         $w    = (int) $this->params->get('width', 600);
         $h    = (int) $this->params->get('height', 300);
-        $key  = config('statamic-google-maps.api_key', '');
+        $key  = config('alt-google-maps.api_key', '');
 
         if ($lat === null || $lng === null || empty($key)) {
             return '';

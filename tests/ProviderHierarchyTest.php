@@ -16,7 +16,7 @@ function tag(array $params): GoogleMapTag
 }
 
 it('uses per-field provider over global', function () {
-    config(['statamic-google-maps.map_provider' => 'google']);
+    config(['alt-google-maps.map_provider' => 'google']);
 
     $ft = (new GoogleMapsFieldtype)->setField(new \Statamic\Fields\Field('map', [
         'type'         => 'google_maps',
@@ -28,7 +28,7 @@ it('uses per-field provider over global', function () {
 });
 
 it('falls back to global provider when blank', function () {
-    config(['statamic-google-maps.map_provider' => 'osm']);
+    config(['alt-google-maps.map_provider' => 'osm']);
 
     $ft = (new GoogleMapsFieldtype)->setField(new \Statamic\Fields\Field('map', [
         'type'         => 'google_maps',
@@ -62,21 +62,21 @@ it('truncates long address in preProcessIndex', function () {
 });
 
 it('renders OSM branch in google_map tag', function () {
-    config(['statamic-google-maps.map_provider' => 'osm']);
+    config(['alt-google-maps.map_provider' => 'osm']);
     $out = tag(['lat' => '51.5', 'lng' => '-0.12', 'zoom' => '10'])->index();
     expect($out)->toContain('leaflet')
         ->not->toContain('maps.googleapis.com/maps/api/js');
 });
 
 it('renders Google branch with API key in google_map tag', function () {
-    config(['statamic-google-maps.map_provider' => 'google', 'statamic-google-maps.api_key' => 'XYZ']);
+    config(['alt-google-maps.map_provider' => 'google', 'alt-google-maps.api_key' => 'XYZ']);
     $out = tag(['lat' => '1', 'lng' => '2'])->index();
     expect($out)->toContain('maps.googleapis.com/maps/api/js')
         ->toContain('key=XYZ');
 });
 
 it('warns when Google API key is missing in tag', function () {
-    config(['statamic-google-maps.api_key' => '', 'statamic-google-maps.map_provider' => 'google']);
+    config(['alt-google-maps.api_key' => '', 'alt-google-maps.map_provider' => 'google']);
     expect(tag(['lat' => '1', 'lng' => '2'])->index())
         ->toContain('GOOGLE_MAPS_API_KEY not configured');
 });
@@ -86,7 +86,7 @@ it('warns when coords are missing in tag', function () {
 });
 
 it('exposes per-field map_height in augment', function () {
-    config(['statamic-google-maps.map_height' => 420]);
+    config(['alt-google-maps.map_height' => 420]);
     $ft = (new GoogleMapsFieldtype)->setField(new \Statamic\Fields\Field('map', [
         'type'       => 'google_maps',
         'map_height' => 250,
@@ -96,16 +96,16 @@ it('exposes per-field map_height in augment', function () {
 });
 
 it('falls back to global map_height in augment', function () {
-    config(['statamic-google-maps.map_height' => 600]);
+    config(['alt-google-maps.map_height' => 600]);
     $out = (new GoogleMapsFieldtype)->augment(['lat' => 1, 'lng' => 2, 'zoom' => 10]);
     expect($out['map_height'])->toBe(600);
 });
 
 it('uses per-field default lat/lng/zoom in defaultValue', function () {
     config([
-        'statamic-google-maps.defaults.lat'  => 10.0,
-        'statamic-google-maps.defaults.lng'  => 20.0,
-        'statamic-google-maps.defaults.zoom' => 5,
+        'alt-google-maps.defaults.lat'  => 10.0,
+        'alt-google-maps.defaults.lng'  => 20.0,
+        'alt-google-maps.defaults.zoom' => 5,
     ]);
 
     $ft = (new GoogleMapsFieldtype)->setField(new \Statamic\Fields\Field('map', [
@@ -123,9 +123,9 @@ it('uses per-field default lat/lng/zoom in defaultValue', function () {
 
 it('falls back to global defaults in defaultValue', function () {
     config([
-        'statamic-google-maps.defaults.lat'  => 10.0,
-        'statamic-google-maps.defaults.lng'  => 20.0,
-        'statamic-google-maps.defaults.zoom' => 7,
+        'alt-google-maps.defaults.lat'  => 10.0,
+        'alt-google-maps.defaults.lng'  => 20.0,
+        'alt-google-maps.defaults.zoom' => 7,
     ]);
 
     $defaults = (new GoogleMapsFieldtype)->defaultValue();
@@ -135,16 +135,16 @@ it('falls back to global defaults in defaultValue', function () {
 });
 
 it('urlencodes the API key in static_map_url', function () {
-    config(['statamic-google-maps.api_key' => 'abc&def=xyz']);
+    config(['alt-google-maps.api_key' => 'abc&def=xyz']);
     $out = (new GoogleMapsFieldtype)->augment(['lat' => 1, 'lng' => 2, 'zoom' => 10]);
     expect($out['static_map_url'])->toContain('key=abc%26def%3Dxyz');
 });
 
 it('returns marker_icon as array when URL is set', function () {
     config([
-        'statamic-google-maps.marker_icon_url'    => 'https://example.com/pin.png',
-        'statamic-google-maps.marker_icon_width'  => 32,
-        'statamic-google-maps.marker_icon_height' => 40,
+        'alt-google-maps.marker_icon_url'    => 'https://example.com/pin.png',
+        'alt-google-maps.marker_icon_width'  => 32,
+        'alt-google-maps.marker_icon_height' => 40,
     ]);
     $out = (new GoogleMapsFieldtype)->augment(['lat' => 1, 'lng' => 2, 'zoom' => 10]);
     expect($out['marker_icon'])->toBeArray()
@@ -154,13 +154,13 @@ it('returns marker_icon as array when URL is set', function () {
 });
 
 it('returns marker_icon as null when no URL is set', function () {
-    config(['statamic-google-maps.marker_icon_url' => '']);
+    config(['alt-google-maps.marker_icon_url' => '']);
     $out = (new GoogleMapsFieldtype)->augment(['lat' => 1, 'lng' => 2, 'zoom' => 10]);
     expect($out['marker_icon'])->toBeNull();
 });
 
 it('overrides config provider with tag param', function () {
-    config(['statamic-google-maps.map_provider' => 'google', 'statamic-google-maps.api_key' => 'X']);
+    config(['alt-google-maps.map_provider' => 'google', 'alt-google-maps.api_key' => 'X']);
     $out = tag(['lat' => '1', 'lng' => '2', 'provider' => 'osm'])->index();
     expect($out)->toContain('leaflet');
 });

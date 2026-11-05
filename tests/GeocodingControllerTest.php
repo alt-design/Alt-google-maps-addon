@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\RateLimiter;
 uses(TestCase::class);
 
 beforeEach(function () {
-    config(['statamic-google-maps.api_key' => 'test-google-key']);
+    config(['alt-google-maps.api_key' => 'test-google-key']);
     Cache::flush();
     RateLimiter::clear('alt-gmaps:nominatim');
     $user = \Statamic\Facades\User::make()->makeSuper();

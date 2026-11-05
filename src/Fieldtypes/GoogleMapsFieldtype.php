@@ -45,12 +45,12 @@ class GoogleMapsFieldtype extends Fieldtype
     private function singleDefault(): array
     {
         return [
-            'lat'               => $this->config('default_lat') ?? config('statamic-google-maps.defaults.lat'),
-            'lng'               => $this->config('default_lng') ?? config('statamic-google-maps.defaults.lng'),
+            'lat'               => $this->config('default_lat') ?? config('alt-google-maps.defaults.lat'),
+            'lng'               => $this->config('default_lng') ?? config('alt-google-maps.defaults.lng'),
             'address'           => '',
-            'zoom'              => $this->config('default_zoom') ?? config('statamic-google-maps.defaults.zoom', 13),
-            'infobox_title'     => $this->config('default_infobox_title') ?? config('statamic-google-maps.infobox_title', ''),
-            'infobox_content'   => $this->config('default_infobox_content') ?? config('statamic-google-maps.infobox_content', ''),
+            'zoom'              => $this->config('default_zoom') ?? config('alt-google-maps.defaults.zoom', 13),
+            'infobox_title'     => $this->config('default_infobox_title') ?? config('alt-google-maps.infobox_title', ''),
+            'infobox_content'   => $this->config('default_infobox_content') ?? config('alt-google-maps.infobox_content', ''),
             'marker_icon_url'   => '',
             'marker_icon_width' => 0,
             'marker_icon_height'=> 0,
@@ -74,7 +74,7 @@ class GoogleMapsFieldtype extends Fieldtype
             'lat'               => null,
             'lng'               => null,
             'address'           => '',
-            'zoom'              => $this->config('default_zoom') ?? config('statamic-google-maps.defaults.zoom', 13),
+            'zoom'              => $this->config('default_zoom') ?? config('alt-google-maps.defaults.zoom', 13),
             'infobox_title'     => '',
             'infobox_content'   => '',
             'marker_icon_url'   => '',
@@ -329,9 +329,9 @@ class GoogleMapsFieldtype extends Fieldtype
             ? $this->resolveConfigAssetUrl($configAsset)
             : (string) ($this->config('marker_icon_url') ?? '');
 
-        $markerIconUrl    = (string) ($entryIconUrl  ?: ($configUrl ?: config('statamic-google-maps.marker_icon_url', '')));
-        $markerIconWidth  = $entryIconWidth  > 0 ? $entryIconWidth  : (int) ($this->config('marker_icon_width')   ?: config('statamic-google-maps.marker_icon_width', 40));
-        $markerIconHeight = $entryIconHeight > 0 ? $entryIconHeight : (int) ($this->config('marker_icon_height')  ?: config('statamic-google-maps.marker_icon_height', 40));
+        $markerIconUrl    = (string) ($entryIconUrl  ?: ($configUrl ?: config('alt-google-maps.marker_icon_url', '')));
+        $markerIconWidth  = $entryIconWidth  > 0 ? $entryIconWidth  : (int) ($this->config('marker_icon_width')   ?: config('alt-google-maps.marker_icon_width', 40));
+        $markerIconHeight = $entryIconHeight > 0 ? $entryIconHeight : (int) ($this->config('marker_icon_height')  ?: config('alt-google-maps.marker_icon_height', 40));
 
         return $markerIconUrl
             ? ['url' => $markerIconUrl, 'width' => $markerIconWidth, 'height' => $markerIconHeight]
@@ -346,14 +346,14 @@ class GoogleMapsFieldtype extends Fieldtype
 
         $lat  = (float) $value['lat'];
         $lng  = (float) $value['lng'];
-        $zoom = (int) ($value['zoom'] ?? $this->config('default_zoom') ?? config('statamic-google-maps.defaults.zoom', 13));
-        $key  = config('statamic-google-maps.api_key', '');
+        $zoom = (int) ($value['zoom'] ?? $this->config('default_zoom') ?? config('alt-google-maps.defaults.zoom', 13));
+        $key  = config('alt-google-maps.api_key', '');
 
-        $provider   = $this->config('map_provider') ?: config('statamic-google-maps.map_provider', 'google');
-        $mapHeight  = (int) ($this->config('map_height') ?: config('statamic-google-maps.map_height', 420));
-        $infoboxTitle   = ($value['infobox_title']   ?? '') ?: ($this->config('default_infobox_title')   ?: config('statamic-google-maps.infobox_title', ''));
-        $infoboxContent = ($value['infobox_content'] ?? '') ?: ($this->config('default_infobox_content') ?: config('statamic-google-maps.infobox_content', ''));
-        $mapStyle = (string) ($this->config('map_style') ?: config('statamic-google-maps.map_style', ''));
+        $provider   = $this->config('map_provider') ?: config('alt-google-maps.map_provider', 'google');
+        $mapHeight  = (int) ($this->config('map_height') ?: config('alt-google-maps.map_height', 420));
+        $infoboxTitle   = ($value['infobox_title']   ?? '') ?: ($this->config('default_infobox_title')   ?: config('alt-google-maps.infobox_title', ''));
+        $infoboxContent = ($value['infobox_content'] ?? '') ?: ($this->config('default_infobox_content') ?: config('alt-google-maps.infobox_content', ''));
+        $mapStyle = (string) ($this->config('map_style') ?: config('alt-google-maps.map_style', ''));
         $markerIcon = $this->resolveMarkerIcon($value);
 
         // Build a markers array so templates can use a unified API
@@ -397,9 +397,9 @@ class GoogleMapsFieldtype extends Fieldtype
             return null;
         }
 
-        $provider   = $this->config('map_provider') ?: config('statamic-google-maps.map_provider', 'google');
-        $mapHeight  = (int) ($this->config('map_height') ?: config('statamic-google-maps.map_height', 420));
-        $mapStyle   = (string) ($this->config('map_style') ?: config('statamic-google-maps.map_style', ''));
+        $provider   = $this->config('map_provider') ?: config('alt-google-maps.map_provider', 'google');
+        $mapHeight  = (int) ($this->config('map_height') ?: config('alt-google-maps.map_height', 420));
+        $mapStyle   = (string) ($this->config('map_style') ?: config('alt-google-maps.map_style', ''));
         $zoomOverride = isset($value['zoom_override']) && $value['zoom_override'] !== null && $value['zoom_override'] !== ''
             ? (int) $value['zoom_override']
             : null;
@@ -413,8 +413,8 @@ class GoogleMapsFieldtype extends Fieldtype
 
             $lat  = (float) $m['lat'];
             $lng  = (float) $m['lng'];
-            $infoboxTitle   = ($m['infobox_title']   ?? '') ?: ($this->config('default_infobox_title')   ?: config('statamic-google-maps.infobox_title', ''));
-            $infoboxContent = ($m['infobox_content'] ?? '') ?: ($this->config('default_infobox_content') ?: config('statamic-google-maps.infobox_content', ''));
+            $infoboxTitle   = ($m['infobox_title']   ?? '') ?: ($this->config('default_infobox_title')   ?: config('alt-google-maps.infobox_title', ''));
+            $infoboxContent = ($m['infobox_content'] ?? '') ?: ($this->config('default_infobox_content') ?: config('alt-google-maps.infobox_content', ''));
             $markerIcon     = $this->resolveMarkerIcon($m);
 
             $augmentedMarkers[] = [

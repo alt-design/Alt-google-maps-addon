@@ -49,7 +49,7 @@ In [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/
 
 ### What is and isn't in your Git history
 
-The addon's source code contains `config('statamic-google-maps.api_key')` — that is what gets committed. The **value** of the key lives only in your `.env` file, which is listed in `.gitignore` and is never committed. Anyone cloning your repository will see the code that reads the key, not the key itself.
+The addon's source code contains `config('alt-google-maps.api_key')` — that is what gets committed. The **value** of the key lives only in your `.env` file, which is listed in `.gitignore` and is never committed. Anyone cloning your repository will see the code that reads the key, not the key itself.
 
 ### Server-side protections
 
@@ -79,13 +79,13 @@ composer require alt-design/alt-google-maps-addon
 Then publish the config file:
 
 ```bash
-php artisan vendor:publish --tag=statamic-google-maps-config
+php artisan vendor:publish --tag=alt-google-maps-config
 ```
 
 Optionally publish the views if you need to customise the CP settings page:
 
 ```bash
-php artisan vendor:publish --tag=statamic-google-maps-views
+php artisan vendor:publish --tag=alt-google-maps-views
 ```
 
 ## Configuration
@@ -114,7 +114,7 @@ You can also configure these settings via the CP under **Tools → Alt Google Ma
 
 ### Config file
 
-After publishing, `config/statamic-google-maps.php` exposes additional options:
+After publishing, `config/alt-google-maps.php` exposes additional options:
 
 **General**
 
@@ -160,9 +160,9 @@ Settings are resolved from **highest to lowest priority** — a higher source al
 | 1 — highest | Per-field config in blueprint / fieldset | `map_provider: osm` on the field                    |
 | 2           | CP Settings page                         | **Tools → Alt Google Maps** → save                  |
 | 3           | `.env`                                   | `GOOGLE_MAPS_PROVIDER=google`                       |
-| 4 — lowest  | Config file                              | `map_provider` in `config/statamic-google-maps.php` |
+| 4 — lowest  | Config file                              | `map_provider` in `config/alt-google-maps.php` |
 
-The CP Settings page writes to `storage/app/statamic/google-maps-settings.json`. This file overrides the runtime config at boot, so anything reading `config('statamic-google-maps.map_provider')` sees the CP value, not `.env`. To revert to `.env`, delete that JSON file.
+The CP Settings page writes to `storage/app/statamic/google-maps-settings.json`. This file overrides the runtime config at boot, so anything reading `config('alt-google-maps.map_provider')` sees the CP value, not `.env`. To revert to `.env`, delete that JSON file.
 
 The resolved provider is also exposed as an **augmented variable** (`map_provider`) on each field value — your Antlers templates can read it directly without touching global config (see [Available variables](#available-variables)).
 
@@ -335,7 +335,7 @@ The frontend map respects the active `map_provider`. Inside a `{{ location }}` t
         (function() {
             var el  = document.getElementById('map-{{ lat }}-{{ lng }}');
             var pEl = document.getElementById('map-{{ lat }}-{{ lng }}-popup');
-            AltMap.initGoogle(el, {{ lat }}, {{ lng }}, {{ zoom }}, pEl ? pEl.innerHTML.trim() : '', '{{ config:statamic-google-maps:api_key }}', '{{ config:statamic-google-maps:map_type }}');
+            AltMap.initGoogle(el, {{ lat }}, {{ lng }}, {{ zoom }}, pEl ? pEl.innerHTML.trim() : '', '{{ config:alt-google-maps:api_key }}', '{{ config:alt-google-maps:map_type }}');
         })();
         </script>
         {{ /if }}
@@ -380,7 +380,7 @@ When the `google_maps` field is inside a Replicator or Bard set, use **colon not
     (function() {
         var el  = document.getElementById('gmap-{{ id }}');
         var pEl = document.getElementById('gmap-{{ id }}-popup');
-        AltMap.initGoogle(el, {{ google_maps_field:lat }}, {{ google_maps_field:lng }}, {{ google_maps_field:zoom }}, pEl ? pEl.innerHTML.trim() : '', '{{ config:statamic-google-maps:api_key }}', '{{ config:statamic-google-maps:map_type ?? "roadmap" }}');
+        AltMap.initGoogle(el, {{ google_maps_field:lat }}, {{ google_maps_field:lng }}, {{ google_maps_field:zoom }}, pEl ? pEl.innerHTML.trim() : '', '{{ config:alt-google-maps:api_key }}', '{{ config:alt-google-maps:map_type ?? "roadmap" }}');
     })();
     </script>
     {{ /if }}
@@ -502,7 +502,7 @@ Clustering only activates when two or more markers are close enough at the curre
     <script>
     (function() {
         var el = document.getElementById('gmap-{{ id }}');
-        AltMap.initGoogleMulti(el, el.dataset.markers, '{{ config:statamic-google-maps:api_key }}', '{{ config:statamic-google-maps:map_type ?? "roadmap" }}', {{ google_maps_field:zoom ?? 'null' }}, {{ google_maps_field:enable_clustering ? 'true' : 'false' }});
+        AltMap.initGoogleMulti(el, el.dataset.markers, '{{ config:alt-google-maps:api_key }}', '{{ config:alt-google-maps:map_type ?? "roadmap" }}', {{ google_maps_field:zoom ?? 'null' }}, {{ google_maps_field:enable_clustering ? 'true' : 'false' }});
     })();
     </script>
     {{ /if }}
@@ -548,7 +548,7 @@ When a location has an **Infobox Title** or **Infobox Content** set, clicking th
 | 1 — highest | Per-entry (stored value) | Editor fills in the fields when saving the entry                           |
 | 2           | Per-field config         | `default_infobox_title` / `default_infobox_content` on the blueprint field |
 | 3           | CP Settings page         | **Tools → Alt Google Maps** → Infobox section                              |
-| 4 — lowest  | Config / `.env`          | `infobox_title` / `infobox_content` in `config/statamic-google-maps.php`   |
+| 4 — lowest  | Config / `.env`          | `infobox_title` / `infobox_content` in `config/alt-google-maps.php`   |
 
 Leaving any level blank means "inherit from the next level down". Blank means an **empty string** — the fallback chain treats empty strings the same as null, so setting the CP default and leaving the per-entry field empty will correctly surface the CP default. If both `infobox_title` and `infobox_content` are empty after full resolution, no popup is attached — the marker exists but clicking it does nothing.
 
@@ -610,7 +610,7 @@ You can replace the default provider pin with any PNG or SVG image. The icon URL
 | 1 — highest | Per-entry (stored value) | Editor uses the **Browse assets** / drag & drop / choose file picker in the CP fieldtype    |
 | 2           | Per-field config         | `marker_icon_asset` / `marker_icon_width` / `marker_icon_height` on the blueprint field     |
 | 3           | CP Settings page         | **Tools → Alt Google Maps** → Marker section (asset picker)                                 |
-| 4 — lowest  | Config / `.env`          | `marker_icon_url/width/height` in `config/statamic-google-maps.php` / `.env`                |
+| 4 — lowest  | Config / `.env`          | `marker_icon_url/width/height` in `config/alt-google-maps.php` / `.env`                |
 
 Leaving any level empty means "inherit from the next level down". If the resolved URL is empty after all fallbacks, the provider's default pin is used.
 
@@ -737,7 +737,7 @@ use AltDesign\AltGoogleMapsAddon\Tests\TestCase;
 uses(TestCase::class);
 
 it('falls back to global provider when per-field is blank', function () {
-    config(['statamic-google-maps.map_provider' => 'osm']);
+    config(['alt-google-maps.map_provider' => 'osm']);
 
     $ft = (new GoogleMapsFieldtype)->setField(new \Statamic\Fields\Field('map', [
         'type'         => 'google_maps',

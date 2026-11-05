@@ -135,17 +135,17 @@ class SettingsController extends Controller
         }
 
         return [
-            'lat'             => config('statamic-google-maps.defaults.lat'),
-            'lng'             => config('statamic-google-maps.defaults.lng'),
-            'zoom'            => config('statamic-google-maps.defaults.zoom', 13),
-            'map_provider'    => config('statamic-google-maps.map_provider', 'google'),
-            'infobox_title'      => config('statamic-google-maps.infobox_title', ''),
-            'infobox_content'    => config('statamic-google-maps.infobox_content', ''),
-            'map_style'          => config('statamic-google-maps.map_style', ''),
+            'lat'             => config('alt-google-maps.defaults.lat'),
+            'lng'             => config('alt-google-maps.defaults.lng'),
+            'zoom'            => config('alt-google-maps.defaults.zoom', 13),
+            'map_provider'    => config('alt-google-maps.map_provider', 'google'),
+            'infobox_title'      => config('alt-google-maps.infobox_title', ''),
+            'infobox_content'    => config('alt-google-maps.infobox_content', ''),
+            'map_style'          => config('alt-google-maps.map_style', ''),
             'marker_icon_asset'  => null,
-            'marker_icon_url'    => config('statamic-google-maps.marker_icon_url', ''),
-            'marker_icon_width'  => config('statamic-google-maps.marker_icon_width', 40),
-            'marker_icon_height' => config('statamic-google-maps.marker_icon_height', 40),
+            'marker_icon_url'    => config('alt-google-maps.marker_icon_url', ''),
+            'marker_icon_width'  => config('alt-google-maps.marker_icon_width', 40),
+            'marker_icon_height' => config('alt-google-maps.marker_icon_height', 40),
         ];
     }
 }

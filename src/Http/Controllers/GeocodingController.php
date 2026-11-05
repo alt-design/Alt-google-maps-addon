@@ -23,7 +23,7 @@ class GeocodingController extends Controller
 
     public function __construct()
     {
-        $this->apiKey = config('statamic-google-maps.api_key', '');
+        $this->apiKey = config('alt-google-maps.api_key', '');
     }
 
     public function geocode(Request $request)
