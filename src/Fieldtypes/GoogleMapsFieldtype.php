@@ -357,7 +357,7 @@ class GoogleMapsFieldtype extends Fieldtype
             'marker_icon'      => $markerIcon,
             'marker_icon_json' => $markerIcon ? json_encode($markerIcon) : '',
         ];
-        $markersJson = json_encode([$this->markerForFrontend($markerEntry)]);
+        $markersJson = json_encode([$this->markerForFrontend($markerEntry)], JSON_HEX_TAG | JSON_HEX_AMP);
 
         return [
             'lat'              => $lat,
@@ -422,7 +422,7 @@ class GoogleMapsFieldtype extends Fieldtype
         if (empty($augmentedMarkers)) return null;
 
         $first = $augmentedMarkers[0];
-        $markersJson = json_encode(array_map([$this, 'markerForFrontend'], $augmentedMarkers));
+        $markersJson = json_encode(array_map([$this, 'markerForFrontend'], $augmentedMarkers), JSON_HEX_TAG | JSON_HEX_AMP);
 
         return [
             // First-marker convenience (backward compat)

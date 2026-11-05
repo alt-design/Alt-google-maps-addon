@@ -18,6 +18,11 @@
     var lng   = {{ $lng }};
     var zoom  = {{ $zoom }};
 
+    function showLoadError() {
+        var el = document.getElementById(mapId);
+        if (el) { el.textContent = "This map could not be loaded. Check your connection and reload the page."; el.style.cssText += 'display:flex;align-items:center;justify-content:center;text-align:center;padding:1rem;background:#f3f4f6;color:#4b5563;'; }
+    }
+
     function initLeaflet() {
         if (typeof L === 'undefined') return;
         var el = document.getElementById(mapId);
@@ -60,9 +65,10 @@
         window._leafletLoading = new Promise(function (resolve) {
             var s = document.createElement('script');
             s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-            s.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WPaA=';
+            s.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
             s.crossOrigin = '';
             s.onload = resolve;
+            s.onerror = function () { window._leafletLoading = null; showLoadError(); };
             document.head.appendChild(s);
         });
         window._leafletLoading.then(cb);
@@ -79,6 +85,11 @@
     var lng     = {{ $lng }};
     var zoom    = {{ $zoom }};
     var mapType = {{ Js::from($map_type) }};
+
+    function showLoadError() {
+        var el = document.getElementById(mapId);
+        if (el) { el.textContent = "This map could not be loaded. Check your connection and reload the page."; el.style.cssText += 'display:flex;align-items:center;justify-content:center;text-align:center;padding:1rem;background:#f3f4f6;color:#4b5563;'; }
+    }
 
     function initGoogle() {
         var el = document.getElementById(mapId);
@@ -124,6 +135,7 @@
         s.src = 'https://maps.googleapis.com/maps/api/js?key={{ urlencode($key) }}';
         s.async = true;
         s.onload = resolve;
+        s.onerror = function () { window._gmapsLoadingFrontend = null; showLoadError(); };
         document.head.appendChild(s);
     });
     window._gmapsLoadingFrontend.then(initGoogle);

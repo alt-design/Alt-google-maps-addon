@@ -5,10 +5,10 @@
 
 @if ($provider === 'osm')
 {{-- ── OpenStreetMap / Leaflet + MarkerCluster ─────────────────────────────── --}}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 @if ($clustering)
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" integrity="sha256-YU3qCpj/P06tdPBJGPax0bm6Q1wltfwjsho5TR4+TYc=" crossorigin="" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" integrity="sha256-YSWCMtmNZNwqex4CEw1nQhvFub2lmU7vcCKP+XVwwXA=" crossorigin="" />
 @endif
 <script>
 (function () {
@@ -77,6 +77,11 @@
         }
     }
 
+    function showLoadError() {
+        var el = document.getElementById(mapId);
+        if (el) { el.textContent = "This map could not be loaded. Check your connection and reload the page."; el.style.cssText += 'display:flex;align-items:center;justify-content:center;text-align:center;padding:1rem;background:#f3f4f6;color:#4b5563;'; }
+    }
+
     function loadLeafletAndCluster(cb) {
         function loadLeaflet(next) {
             if (typeof L !== 'undefined') { next(); return; }
@@ -84,8 +89,10 @@
             window._leafletLoading = new Promise(function (resolve) {
                 var s = document.createElement('script');
                 s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                s.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
                 s.crossOrigin = '';
                 s.onload = resolve;
+                s.onerror = function () { window._leafletLoading = null; showLoadError(); };
                 document.head.appendChild(s);
             });
             window._leafletLoading.then(next);
@@ -97,8 +104,10 @@
             window._leafletClusterLoading = new Promise(function (resolve) {
                 var s = document.createElement('script');
                 s.src = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js';
+                s.integrity = 'sha256-Hk4dIpcqOSb0hZjgyvFOP+cEmDXUKKNE/tT542ZbNQg=';
                 s.crossOrigin = '';
                 s.onload = resolve;
+                s.onerror = function () { window._leafletClusterLoading = null; showLoadError(); };
                 document.head.appendChild(s);
             });
             window._leafletClusterLoading.then(next);
@@ -123,10 +132,13 @@
     var markers     = {!! $markers_json !!};
     var zoom        = {{ $zoom ?? 'null' }};
     var defaultZoom = {{ $default_zoom }};
+
+    function showLoadError() {
+        var el = document.getElementById(mapId);
+        if (el) { el.textContent = "This map could not be loaded. Check your connection and reload the page."; el.style.cssText += 'display:flex;align-items:center;justify-content:center;text-align:center;padding:1rem;background:#f3f4f6;color:#4b5563;'; }
+    }
     var clustering  = {{ $clustering ? 'true' : 'false' }};
     var mapType     = {{ Js::from($map_type) }};
-
-    console.log('[gmap:multi] clustering=' + clustering + ', markers=' + markers.length + ', provider={{ $provider }}');
 
     function initMap() {
         var el = document.getElementById(mapId);
@@ -219,13 +231,14 @@
     }
 
     // Load a script once, caching the promise globally under `cacheKey`
-    function loadScript(src, cacheKey, alreadyLoaded) {
+    function loadScript(src, cacheKey, alreadyLoaded, integrity) {
         if (alreadyLoaded()) return Promise.resolve();
         if (window[cacheKey]) return window[cacheKey];
         window[cacheKey] = new Promise(function (resolve, reject) {
             var s = document.createElement('script');
             s.src = src;
             s.async = true;
+            if (integrity) { s.integrity = integrity; s.crossOrigin = ''; }
             s.onload = resolve;
             s.onerror = function () { window[cacheKey] = null; reject(new Error('Failed: ' + src)); };
             document.head.appendChild(s);
@@ -241,11 +254,12 @@
         ).then(function () {
             if (!clustering) { initMap(); return; }
             return loadScript(
-                'https://unpkg.com/@googlemaps/markerclusterer/dist/index.umd.js',
+                'https://unpkg.com/@googlemaps/markerclusterer@2.6.2/dist/index.umd.js',
                 '_mcLoading',
-                function () { return !!(window.markerClusterer && window.markerClusterer.MarkerClusterer); }
+                function () { return !!(window.markerClusterer && window.markerClusterer.MarkerClusterer); },
+                'sha256-6yIVCkgKFWog5aEoz/dMM4H7y9Jvg8OWFDhocO81Pd0='
             ).then(initMap);
-        }).catch(function (e) { console.error('[google_map:multi]', e); });
+        }).catch(function (e) { console.error('[google_map:multi]', e); showLoadError(); });
     }
 
     if (document.readyState === 'loading') {
