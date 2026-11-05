@@ -71,7 +71,8 @@ class GoogleMapTag extends Tags
         $defaultZoom = (int) $this->params->get('default_zoom', config('alt-google-maps.defaults.zoom', 13));
 
         $markers = json_decode($markersJson, true);
-        if (! is_array($markers) || empty($markers)) {
+        $safeMarkersJson = is_array($markers) ? $this->safeMarkersJson($markers) : '[]';
+        if ($safeMarkersJson === '[]') {
             return '<!-- google_map:multi: no valid markers -->';
         }
 
@@ -80,7 +81,7 @@ class GoogleMapTag extends Tags
         }
 
         return view('alt-google-maps::map-multi', [
-            'markers_json'  => $this->safeMarkersJson($markers),
+            'markers_json'  => $safeMarkersJson,
             'clustering'    => $clustering,
             'cluster_color' => $clusterColor,
             'zoom'         => $zoom,
@@ -120,27 +121,40 @@ class GoogleMapTag extends Tags
     }
 
     /**
-     * Encode markers for a script block, cleaning popup HTML whatever the source of the JSON.
+     * Encode markers for a script block, keeping only the fields the map uses and cleaning popup HTML.
      *
      * @param  array<int|string, mixed>  $markers
      */
     private function safeMarkersJson(array $markers): string
     {
-        $cleaned = array_map(function ($marker) {
-            if (! is_array($marker)) {
-                return $marker;
-            }
+        $safe = array_values(array_filter(array_map(fn ($marker) => $this->safeMarker($marker), $markers)));
 
-            foreach (['infobox_title', 'infobox_content'] as $field) {
-                if (isset($marker[$field]) && is_string($marker[$field])) {
-                    $marker[$field] = HtmlSanitizer::clean($marker[$field]);
-                }
-            }
+        return (string) json_encode($safe, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    }
 
-            return $marker;
-        }, $markers);
+    /**
+     * @return array{lat: float, lng: float, infobox_title: string, infobox_content: string, iconJson: string|array<mixed>}|null
+     */
+    private function safeMarker(mixed $marker): ?array
+    {
+        if (! is_array($marker) || ! is_numeric($marker['lat'] ?? null) || ! is_numeric($marker['lng'] ?? null)) {
+            return null;
+        }
 
-        return (string) json_encode($cleaned, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+        $icon = $marker['iconJson'] ?? '';
+
+        return [
+            'lat'             => (float) $marker['lat'],
+            'lng'             => (float) $marker['lng'],
+            'infobox_title'   => HtmlSanitizer::clean($this->scalarText($marker['infobox_title'] ?? '')),
+            'infobox_content' => HtmlSanitizer::clean($this->scalarText($marker['infobox_content'] ?? '')),
+            'iconJson'        => is_string($icon) || is_array($icon) ? $icon : '',
+        ];
+    }
+
+    private function scalarText(mixed $value): string
+    {
+        return is_scalar($value) ? (string) $value : '';
     }
 
     /**

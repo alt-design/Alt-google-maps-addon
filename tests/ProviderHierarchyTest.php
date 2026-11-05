@@ -216,3 +216,25 @@ it('points editors to the addon settings page in field instructions and errors',
         expect(file_get_contents($file))->not->toContain('Tools → Google Maps');
     }
 });
+
+it('keeps only known marker fields and cleans popup values whatever their type', function () {
+    config(['alt-google-maps.map_provider' => 'osm']);
+    $markers = json_encode([
+        [
+            'lat' => '53.48',
+            'lng' => -2.24,
+            'infobox_title' => ['<img src=x onerror=alert(1)>'],
+            'infobox_content' => ['nested' => '<svg onload=alert(2)>'],
+            'extra' => '<script>alert(3)</script>',
+        ],
+        ['lat' => 'north', 'lng' => 'west', 'infobox_title' => 'Dropped marker'],
+    ], JSON_UNESCAPED_SLASHES);
+
+    $out = tag(['markers' => $markers])->multi();
+
+    expect($out)->not->toContain('onerror=alert')
+        ->and($out)->not->toContain('onload=alert')
+        ->and($out)->not->toContain('alert(3)')
+        ->and($out)->not->toContain('Dropped marker')
+        ->and($out)->toContain('"lat":53.48');
+});
