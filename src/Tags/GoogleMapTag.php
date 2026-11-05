@@ -2,6 +2,7 @@
 
 namespace AltDesign\AltGoogleMapsAddon\Tags;
 
+use AltDesign\AltGoogleMapsAddon\Support\HtmlSanitizer;
 use Illuminate\Support\Facades\Log;
 use Statamic\Tags\Tags;
 
@@ -69,7 +70,6 @@ class GoogleMapTag extends Tags
         $mapType     = $this->params->get('map_type', config('alt-google-maps.map_type', 'roadmap'));
         $defaultZoom = (int) $this->params->get('default_zoom', config('alt-google-maps.defaults.zoom', 13));
 
-        // Decode to validate; pass raw JSON string to the view
         $markers = json_decode($markersJson, true);
         if (! is_array($markers) || empty($markers)) {
             return '<!-- google_map:multi: no valid markers -->';
@@ -80,7 +80,7 @@ class GoogleMapTag extends Tags
         }
 
         return view('alt-google-maps::map-multi', [
-            'markers_json'  => $markersJson,
+            'markers_json'  => $this->safeMarkersJson($markers),
             'clustering'    => $clustering,
             'cluster_color' => $clusterColor,
             'zoom'         => $zoom,
@@ -117,6 +117,30 @@ class GoogleMapTag extends Tags
         return "https://maps.googleapis.com/maps/api/staticmap?"
             . "center={$lat},{$lng}&zoom={$zoom}&size={$w}x{$h}"
             . "&markers=color:red%7C{$lat},{$lng}&key=" . urlencode($key);
+    }
+
+    /**
+     * Encode markers for a script block, cleaning popup HTML whatever the source of the JSON.
+     *
+     * @param  array<int|string, mixed>  $markers
+     */
+    private function safeMarkersJson(array $markers): string
+    {
+        $cleaned = array_map(function ($marker) {
+            if (! is_array($marker)) {
+                return $marker;
+            }
+
+            foreach (['infobox_title', 'infobox_content'] as $field) {
+                if (isset($marker[$field]) && is_string($marker[$field])) {
+                    $marker[$field] = HtmlSanitizer::clean($marker[$field]);
+                }
+            }
+
+            return $marker;
+        }, $markers);
+
+        return (string) json_encode($cleaned, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
     }
 
     /**
