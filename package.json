@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vite build && rsync -a --delete resources/dist/build/ ../../../public/vendor/alt-design/alt-google-maps-addon/build/",
+    "build": "vite build",
     "test": "vitest run",
     "test:watch": "vitest"
   },

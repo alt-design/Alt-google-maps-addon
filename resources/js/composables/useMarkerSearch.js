@@ -9,7 +9,25 @@ import { postCp, googleGeocode, googleReverseGeocode } from './useGeocoder.js';
  *                           an Error whose .userMessage is safe to show
  *   - reverseGeocode(lat, lng): resolves to string | null (errors swallowed)
  */
+const PERMISSION_MESSAGE =
+    'You do not have permission to use the address search. Ask an administrator to grant it, or enter the coordinates by hand.';
+
+function isForbidden(err) {
+    return err?.response?.status === 403 || /HTTP 403/.test(err?.message || '');
+}
+
 export function useMarkerSearch({ _axios, mapProvider }) {
+    async function postGeocode(query) {
+        try {
+            return await postCp('google-maps/geocode', { address: query, provider: 'osm' }, _axios);
+        } catch (err) {
+            if (isForbidden(err)) {
+                err.userMessage = PERMISSION_MESSAGE;
+            }
+            throw err;
+        }
+    }
+
     async function geocode(query) {
         const q = (query || '').trim();
         if (!q) {
@@ -19,7 +37,7 @@ export function useMarkerSearch({ _axios, mapProvider }) {
         }
 
         if (mapProvider.value === 'osm') {
-            const data = await postCp('google-maps/geocode', { address: q, provider: 'osm' }, _axios);
+            const data = await postGeocode(q);
             if (!data.success) {
                 const err = new Error(data.message || 'Location not found.');
                 err.userMessage = data.message || 'Location not found.';

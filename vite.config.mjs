@@ -1,13 +1,9 @@
 import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
 import statamic from '@statamic/cms/vite-plugin';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-    base: '/vendor/alt-google-maps-addon/build/',
+    base: '/vendor/alt-design/alt-google-maps/build/',
     plugins: [
         statamic(),
         laravel({
@@ -15,9 +11,4 @@ export default defineConfig({
             publicDirectory: 'resources/dist',
         }),
     ],
-    resolve: {
-        alias: {
-            '@': path.resolve(__dirname, '../../../vendor/statamic/cms/resources/js'),
-        },
-    },
 });
