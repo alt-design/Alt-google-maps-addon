@@ -44,3 +44,11 @@ it('renders the OpenStreetMap map without a Google key', function () {
 it('returns no static map URL without a key', function () {
     expect(renderTag('static', ['lat' => 51.5, 'lng' => -0.12]))->toBe('');
 });
+
+it('returns no static map URL for blank or non-numeric coordinates', function (array $params) {
+    config(['alt-google-maps.api_key' => 'abc']);
+    expect(renderTag('static', $params))->toBe('');
+})->with([
+    'blank strings' => [['lat' => '', 'lng' => '']],
+    'not numbers' => [['lat' => 'north', 'lng' => 'west']],
+]);

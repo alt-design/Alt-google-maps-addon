@@ -107,7 +107,7 @@ class GoogleMapTag extends Tags
         $h    = (int) $this->params->get('height', 300);
         $key  = config('alt-google-maps.api_key', '');
 
-        if ($lat === null || $lng === null || empty($key)) {
+        if (! is_numeric($lat) || ! is_numeric($lng) || empty($key)) {
             return '';
         }
 
