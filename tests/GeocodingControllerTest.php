@@ -170,3 +170,13 @@ it('allows geocoding for a control panel user with the permission', function () 
         ->assertOk()
         ->assertJson(['success' => true]);
 });
+
+it('rejects an over-long address, an unknown provider and out-of-range coordinates', function () {
+    Http::fake();
+
+    postCp('/cp/google-maps/geocode', ['address' => str_repeat('a', 256), 'provider' => 'osm'])->assertStatus(422);
+    postCp('/cp/google-maps/geocode', ['address' => 'London', 'provider' => 'bing'])->assertStatus(422);
+    postCp('/cp/google-maps/reverse-geocode', ['lat' => 120, 'lng' => 0, 'provider' => 'osm'])->assertStatus(422);
+
+    Http::assertNothingSent();
+});

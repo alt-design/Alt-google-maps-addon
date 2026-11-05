@@ -28,7 +28,10 @@ class GeocodingController extends Controller
 
     public function geocode(Request $request)
     {
-        $request->validate(['address' => 'required|string']);
+        $request->validate([
+            'address'  => 'required|string|max:255',
+            'provider' => 'nullable|in:google,osm',
+        ]);
 
         if ($request->input('provider') === 'osm') {
             return response()->json($this->geocodeOsm($request->input('address')));
@@ -78,8 +81,9 @@ class GeocodingController extends Controller
     public function reverseGeocode(Request $request)
     {
         $request->validate([
-            'lat' => 'required|numeric',
-            'lng' => 'required|numeric',
+            'lat'      => 'required|numeric|between:-90,90',
+            'lng'      => 'required|numeric|between:-180,180',
+            'provider' => 'nullable|in:google,osm',
         ]);
 
         if ($request->input('provider') === 'osm') {
