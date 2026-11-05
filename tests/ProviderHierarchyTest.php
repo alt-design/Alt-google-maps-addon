@@ -164,3 +164,17 @@ it('overrides config provider with tag param', function () {
     $out = tag(['lat' => '1', 'lng' => '2', 'provider' => 'osm'])->index();
     expect($out)->toContain('leaflet');
 });
+
+it('sanitises infobox values again when augmenting stored data', function () {
+    $ft = (new GoogleMapsFieldtype)->setField(new \Statamic\Fields\Field('map', ['type' => 'google_maps']));
+
+    $out = $ft->augment([
+        'lat' => 1, 'lng' => 2, 'zoom' => 10,
+        'infobox_title'   => '<b>Office</b>',
+        'infobox_content' => '<p>Open</p><svg/onload=alert(1)>',
+    ]);
+
+    $marker = json_decode($out['markers_json'], true)[0];
+    expect($marker['infobox_title'])->toBe('Office');
+    expect($marker['infobox_content'])->not->toContain('onload');
+});

@@ -446,8 +446,8 @@ class GoogleMapsFieldtype extends Fieldtype
         return [
             'lat'            => $m['lat'],
             'lng'            => $m['lng'],
-            'infobox_title'  => $m['infobox_title']   ?? '',
-            'infobox_content'=> $m['infobox_content']  ?? '',
+            'infobox_title'  => self::sanitizePlainText($m['infobox_title'] ?? ''),
+            'infobox_content'=> self::sanitizeHtml($m['infobox_content'] ?? ''),
             'iconJson'       => $m['marker_icon_json'] ?? '',
         ];
     }
