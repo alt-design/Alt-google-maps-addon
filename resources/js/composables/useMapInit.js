@@ -77,8 +77,9 @@ export function useMapInit({ props, mapEl, config }) {
         if (!globalConfig.value.api_key) {
             mapEl.value.innerHTML =
                 '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#6b7280;font-size:0.875rem;text-align:center;padding:1rem;">' +
-                'No Google Maps API key configured.<br>Add <code>GOOGLE_MAPS_API_KEY</code> to your <code>.env</code>,<br>' +
-                'or switch to OpenStreetMap in the Alt Google Maps settings.</div>';
+                '<p style="max-width:26rem;margin:0;" role="status">No Google Maps API key is configured. ' +
+                'Add <code>GOOGLE_MAPS_API_KEY</code> to your <code>.env</code> file, ' +
+                'or switch to OpenStreetMap in the Alt Google Maps settings.</p></div>';
             throw new Error('GOOGLE_MAPS_API_KEY not configured');
         }
         await loadGoogleMapsScript(globalConfig.value.api_key);
