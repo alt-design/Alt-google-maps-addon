@@ -27,6 +27,7 @@ return [
     // Custom marker icon. Leave blank to use the provider's default pin.
     // Can be overridden per-fieldset via the field config.
     'marker_icon_url'    => env('GOOGLE_MAPS_MARKER_ICON', ''),
+    'marker_icon_container' => env('GOOGLE_MAPS_MARKER_CONTAINER'),
     'marker_icon_width'  => (int) env('GOOGLE_MAPS_MARKER_WIDTH', 40),
     'marker_icon_height' => (int) env('GOOGLE_MAPS_MARKER_HEIGHT', 40),
 ];

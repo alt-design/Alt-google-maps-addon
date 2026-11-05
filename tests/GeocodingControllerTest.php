@@ -139,3 +139,34 @@ it('validates lat/lng are numeric in reverse geocode', function () {
     postCp('/cp/google-maps/reverse-geocode', ['lat' => 'abc', 'lng' => 'def'])
         ->assertStatus(422);
 });
+
+function cpUserWithPermissions(array $permissions): \Statamic\Contracts\Auth\User
+{
+    $role = \Statamic\Facades\Role::make('maps-' . uniqid())->permissions($permissions);
+    $role->save();
+
+    $user = \Statamic\Facades\User::make()->email(uniqid() . '@example.com');
+    $user->assignRole($role);
+    $user->save();
+
+    return $user;
+}
+
+it('refuses geocoding to a control panel user without the permission', function () {
+    Http::fake();
+    $this->actingAs(cpUserWithPermissions(['access cp']));
+
+    postCp('/cp/google-maps/geocode', ['address' => 'London', 'provider' => 'osm'])->assertForbidden();
+    postCp('/cp/google-maps/reverse-geocode', ['lat' => 1, 'lng' => 2, 'provider' => 'osm'])->assertForbidden();
+
+    Http::assertNothingSent();
+});
+
+it('allows geocoding for a control panel user with the permission', function () {
+    Http::fake(['nominatim.openstreetmap.org/*' => Http::response([['lat' => '51.5', 'lon' => '-0.1', 'display_name' => 'London']], 200)]);
+    $this->actingAs(cpUserWithPermissions(['access cp', 'use alt-google-maps geocoding']));
+
+    postCp('/cp/google-maps/geocode', ['address' => 'London', 'provider' => 'osm'])
+        ->assertOk()
+        ->assertJson(['success' => true]);
+});

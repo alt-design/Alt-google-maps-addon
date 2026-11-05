@@ -23,21 +23,20 @@ tabs:
             field:
               type: integer
               display: Zoom
-              default: 13
-              instructions: "Between 1 (world view) and 21 (street level)."
+              instructions: "Between 1 (world view) and 21 (street level). Leave blank to use the .env or config file value."
               instructions_position: above
               validate: "nullable|integer|between:1,21"
           - handle: map_provider
             field:
               type: select
               display: Map Provider
-              instructions: "Google requires an API key. OpenStreetMap works without one."
+              instructions: "Google requires an API key set in the .env file. OpenStreetMap works without one. Leave blank to use the .env or config file value."
               instructions_position: above
               options:
                 google: "Google Maps"
                 osm: "OpenStreetMap (no API key needed)"
-              default: google
-              clearable: false
+              clearable: true
+              placeholder: "Use the .env or config file value"
               validate: "nullable|in:google,osm"
       - display: Infobox
         fields:
@@ -61,6 +60,7 @@ tabs:
             field:
               type: textarea
               display: Map Style JSON
+              validate: "nullable|json"
               instructions: "Paste style JSON from snazzymaps.com. Applied to Google Maps only. Leave blank for the default style."
               instructions_position: above
               width: 100
@@ -78,15 +78,15 @@ tabs:
             field:
               type: integer
               display: Icon Width (px)
-              default: 40
               instructions: "Width of the custom marker icon in pixels."
+              validate: "nullable|integer|between:1,512"
               instructions_position: above
               width: 50
           - handle: marker_icon_height
             field:
               type: integer
               display: Icon Height (px)
-              default: 40
               instructions: "Height of the custom marker icon in pixels."
+              validate: "nullable|integer|between:1,512"
               instructions_position: above
               width: 50
