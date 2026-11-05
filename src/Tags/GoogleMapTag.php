@@ -2,6 +2,7 @@
 
 namespace AltDesign\AltGoogleMapsAddon\Tags;
 
+use Illuminate\Support\Facades\Log;
 use Statamic\Tags\Tags;
 
 class GoogleMapTag extends Tags
@@ -31,7 +32,7 @@ class GoogleMapTag extends Tags
         }
 
         if ($provider === 'google' && empty($key)) {
-            return '<!-- google_map: GOOGLE_MAPS_API_KEY not configured -->';
+            return $this->unavailable($id, $width, $height);
         }
 
         return view('alt-google-maps::map', [
@@ -75,7 +76,7 @@ class GoogleMapTag extends Tags
         }
 
         if ($provider === 'google' && empty($key)) {
-            return '<!-- google_map:multi: GOOGLE_MAPS_API_KEY not configured -->';
+            return $this->unavailable($id, $width, $height);
         }
 
         return view('alt-google-maps::map-multi', [
@@ -116,5 +117,25 @@ class GoogleMapTag extends Tags
         return "https://maps.googleapis.com/maps/api/staticmap?"
             . "center={$lat},{$lng}&zoom={$zoom}&size={$w}x{$h}"
             . "&markers=color:red%7C{$lat},{$lng}&key=" . urlencode($key);
+    }
+
+    /**
+     * Render a visible placeholder when the Google provider is selected but no API key is set.
+     *
+     * @param  string  $id
+     * @param  string  $width
+     * @param  int  $height
+     * @return string
+     */
+    private function unavailable(string $id, string $width, int $height): string
+    {
+        Log::warning('Alt Google Maps: the Google provider is selected but GOOGLE_MAPS_API_KEY is not set.');
+
+        return view('alt-google-maps::map-unavailable', [
+            'id'      => $id,
+            'width'   => $width,
+            'height'  => $height,
+            'message' => 'This map cannot be shown because no Google Maps API key has been configured.',
+        ])->render();
     }
 }

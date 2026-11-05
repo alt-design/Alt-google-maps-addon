@@ -78,7 +78,7 @@ it('renders Google branch with API key in google_map tag', function () {
 it('warns when Google API key is missing in tag', function () {
     config(['alt-google-maps.api_key' => '', 'alt-google-maps.map_provider' => 'google']);
     expect(tag(['lat' => '1', 'lng' => '2'])->index())
-        ->toContain('GOOGLE_MAPS_API_KEY not configured');
+        ->toContain('no Google Maps API key has been configured');
 });
 
 it('warns when coords are missing in tag', function () {
