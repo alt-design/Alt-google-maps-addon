@@ -2,6 +2,7 @@
 
 namespace AltDesign\AltGoogleMapsAddon\Fieldtypes;
 
+use AltDesign\AltGoogleMapsAddon\Support\HtmlSanitizer;
 use Statamic\Assets\AssetContainer;
 use Statamic\Facades\AssetContainer as AssetContainerFacade;
 use Statamic\Facades\User;
@@ -194,17 +195,7 @@ class GoogleMapsFieldtype extends Fieldtype
      */
     public static function sanitizeHtml(mixed $html): string
     {
-        $html = trim((string) $html);
-        if ($html === '') return '';
-
-        $html = preg_replace('#<(script|style|iframe|object|embed|link|meta)\b[^>]*>.*?</\1>#is', '', $html);
-        $html = preg_replace('#<(script|style|iframe|object|embed|link|meta)\b[^>]*/?>#i', '', $html);
-        $html = preg_replace('#\son[a-z]+\s*=\s*"[^"]*"#i', '', $html);
-        $html = preg_replace("#\son[a-z]+\s*=\s*'[^']*'#i", '', $html);
-        $html = preg_replace('#\son[a-z]+\s*=\s*[^\s>]+#i', '', $html);
-        $html = preg_replace('#(href|src|formaction|xlink:href)\s*=\s*(["\']?)\s*(?:javascript|data|vbscript):[^"\'>\s]*\2#i', '$1=""', $html);
-
-        return $html;
+        return HtmlSanitizer::clean((string) $html);
     }
 
     public static function sanitizePlainText(mixed $value): string
