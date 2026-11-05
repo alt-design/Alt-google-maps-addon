@@ -4,7 +4,6 @@ namespace AltDesign\AltGoogleMapsAddon;
 
 use AltDesign\AltGoogleMapsAddon\Settings\MapSettings;
 use AltDesign\AltGoogleMapsAddon\Settings\SettingsBlueprint;
-use Statamic\Facades\CP\Nav;
 use Statamic\Facades\Permission;
 use Statamic\Providers\AddonServiceProvider;
 use Statamic\Statamic;
@@ -55,7 +54,6 @@ class ServiceProvider extends AddonServiceProvider
             fn () => SettingsBlueprint::contents(__DIR__ . '/../resources/blueprints/settings.yaml')
         );
         $this->registerPermissions();
-        $this->addToNav();
         $this->applySavedSettings();
         $this->provideSettingsToScript();
     }
@@ -69,24 +67,6 @@ class ServiceProvider extends AddonServiceProvider
     {
         Permission::register('use alt-google-maps geocoding')
             ->label('Use the Alt Google Maps address search');
-    }
-
-    /**
-     * Add a Tools link to the addon settings page for users who may edit those settings.
-     *
-     * @return void
-     */
-    protected function addToNav(): void
-    {
-        Nav::extend(function ($nav) {
-            $addon = $this->getAddon();
-
-            $nav->create('Alt Google Maps')
-                ->section('Tools')
-                ->url($addon->settingsUrl())
-                ->can("edit {$addon->package()} settings")
-                ->icon('pin');
-        });
     }
 
     /**
