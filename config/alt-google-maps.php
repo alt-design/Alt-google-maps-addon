@@ -15,7 +15,7 @@ return [
     // Map provider: 'google' (requires API key) or 'osm' (OpenStreetMap, no key needed)
     'map_provider' => env('GOOGLE_MAPS_PROVIDER', 'google'),
 
-    // Infobox defaults — shown in a popup when the marker is clicked.
+    // Infobox defaults - shown in a popup when the marker is clicked.
     // Can be overridden per-fieldset or per-entry. Leave blank to disable the popup.
     'infobox_title'   => env('GOOGLE_MAPS_INFOBOX_TITLE', ''),
     'infobox_content' => env('GOOGLE_MAPS_INFOBOX_CONTENT', ''),
@@ -27,6 +27,7 @@ return [
     // Custom marker icon. Leave blank to use the provider's default pin.
     // Can be overridden per-fieldset via the field config.
     'marker_icon_url'    => env('GOOGLE_MAPS_MARKER_ICON', ''),
+    'marker_icon_container' => env('GOOGLE_MAPS_MARKER_CONTAINER'),
     'marker_icon_width'  => (int) env('GOOGLE_MAPS_MARKER_WIDTH', 40),
     'marker_icon_height' => (int) env('GOOGLE_MAPS_MARKER_HEIGHT', 40),
 ];

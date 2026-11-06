@@ -9,7 +9,7 @@
             </svg>
             <span :title="fullText">{{ displayText }}</span>
         </template>
-        <span v-else style="color: #9CA3AF;">—</span>
+        <span v-else style="color: #9CA3AF;">-</span>
     </div>
 </template>
 

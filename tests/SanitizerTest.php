@@ -172,3 +172,30 @@ it('returns empty string for empty URL', function () {
 it('blocks DATA: protocol (uppercase)', function () {
     expect(GoogleMapsFieldtype::sanitizeUrl('DATA:text/html,x'))->toBe('');
 });
+
+it('strips event handlers on a slash-separated svg tag', function () {
+    expect(GoogleMapsFieldtype::sanitizeHtml('<svg/onload=alert(1)>'))->not->toContain('onload');
+});
+
+it('strips event handlers separated by slashes on an img tag', function () {
+    expect(GoogleMapsFieldtype::sanitizeHtml('<img/src=x/onerror=alert(1)>'))->not->toContain('onerror');
+});
+
+it('removes entity-encoded javascript: URLs from links', function () {
+    $result = GoogleMapsFieldtype::sanitizeHtml('<a href="jav&#x61;script:alert(1)">x</a>');
+    expect($result)->not->toContain('href');
+});
+
+it('removes javascript: URLs hidden by whitespace inside the scheme', function () {
+    $result = GoogleMapsFieldtype::sanitizeHtml("<a href=\"java\tscript:alert(1)\">x</a>");
+    expect($result)->not->toContain('href');
+});
+
+it('keeps the text of unknown tags and drops their attributes', function () {
+    expect(GoogleMapsFieldtype::sanitizeHtml('<font color="red" onclick="x()">Open</font>'))->toBe('Open');
+});
+
+it('adds rel noopener to links that open a new tab', function () {
+    $result = GoogleMapsFieldtype::sanitizeHtml('<a href="https://example.com" target="_blank">Visit</a>');
+    expect($result)->toContain('rel="noopener noreferrer"');
+});

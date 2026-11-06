@@ -94,12 +94,12 @@
             <div class="grid grid-cols-3 gap-2">
                 <div class="gmf-field">
                     <label class="text-2xs uppercase font-semibold text-gray-500">Lat</label>
-                    <input type="number" step="any" class="gmf-input" placeholder="—"
+                    <input type="number" step="any" class="gmf-input" placeholder="-"
                            v-model.number="bulkTemplate.lat" />
                 </div>
                 <div class="gmf-field">
                     <label class="text-2xs uppercase font-semibold text-gray-500">Lng</label>
-                    <input type="number" step="any" class="gmf-input" placeholder="—"
+                    <input type="number" step="any" class="gmf-input" placeholder="-"
                            v-model.number="bulkTemplate.lng" />
                 </div>
                 <div class="gmf-field">

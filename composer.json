@@ -1,25 +1,29 @@
 {
-    "name": "alt-design/alt-google-maps-addon",
-    "description": "Google Maps location fieldtype for Statamic CMS — stores lat, lng, zoom and address, with Antlers tags for frontend rendering.",
+    "name": "alt-design/alt-google-maps",
+    "description": "Location picker fieldtype for Statamic with Google Maps or OpenStreetMap, storing latitude, longitude, zoom and address, with Antlers tags for the front end.",
     "type": "statamic-addon",
     "keywords": [
         "statamic",
-        "addon",
+        "statamic-addon",
         "google-maps",
+        "openstreetmap",
+        "maps",
         "fieldtype",
         "location"
     ],
     "license": "MIT",
-    "version": "1.0.0",
     "authors": [
         {
-            "name": "alt-design",
-            "email": "adriana@alt-design.net"
+            "name": "Alt Design",
+            "homepage": "https://alt-design.net"
         }
     ],
+    "support": {
+        "issues": "https://github.com/alt-design/Alt-google-maps-addon/issues"
+    },
     "require": {
-        "php": "^8.1",
-        "statamic/cms": "^5.0|^6.0"
+        "php": "^8.2",
+        "statamic/cms": "^6.40"
     },
     "require-dev": {
         "orchestra/testbench": "^10.8",
@@ -38,7 +42,7 @@
     "extra": {
         "statamic": {
             "name": "Alt Google Maps",
-            "description": "Interactive Google Maps location picker fieldtype"
+            "description": "Location picker fieldtype for Google Maps or OpenStreetMap, with Antlers tags."
         },
         "laravel": {
             "providers": [

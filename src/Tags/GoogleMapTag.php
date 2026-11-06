@@ -2,6 +2,8 @@
 
 namespace AltDesign\AltGoogleMapsAddon\Tags;
 
+use AltDesign\AltGoogleMapsAddon\Support\HtmlSanitizer;
+use Illuminate\Support\Facades\Log;
 use Statamic\Tags\Tags;
 
 class GoogleMapTag extends Tags
@@ -15,26 +17,26 @@ class GoogleMapTag extends Tags
     {
         $lat      = $this->params->get('lat');
         $lng      = $this->params->get('lng');
-        $zoom     = (int) $this->params->get('zoom', config('statamic-google-maps.defaults.zoom', 13));
-        $height   = (int) $this->params->get('height', config('statamic-google-maps.map_height', 420));
+        $zoom     = (int) $this->params->get('zoom', config('alt-google-maps.defaults.zoom', 13));
+        $height   = (int) $this->params->get('height', config('alt-google-maps.map_height', 420));
         $width    = $this->params->get('width', '100%');
         $id       = $this->params->get('id', 'gmap-' . uniqid());
-        $provider = $this->params->get('provider', config('statamic-google-maps.map_provider', 'google'));
-        $key             = config('statamic-google-maps.api_key', '');
-        $mapType         = $this->params->get('map_type', config('statamic-google-maps.map_type', 'roadmap'));
-        $markerIconUrl   = $this->params->get('marker_icon', config('statamic-google-maps.marker_icon_url', ''));
-        $markerIconWidth = (int) $this->params->get('marker_icon_width', config('statamic-google-maps.marker_icon_width', 40));
-        $markerIconHeight= (int) $this->params->get('marker_icon_height', config('statamic-google-maps.marker_icon_height', 40));
+        $provider = $this->params->get('provider', config('alt-google-maps.map_provider', 'google'));
+        $key             = config('alt-google-maps.api_key', '');
+        $mapType         = $this->params->get('map_type', config('alt-google-maps.map_type', 'roadmap'));
+        $markerIconUrl   = $this->params->get('marker_icon', config('alt-google-maps.marker_icon_url', ''));
+        $markerIconWidth = (int) $this->params->get('marker_icon_width', config('alt-google-maps.marker_icon_width', 40));
+        $markerIconHeight= (int) $this->params->get('marker_icon_height', config('alt-google-maps.marker_icon_height', 40));
 
-        if ($lat === null || $lng === null) {
+        if (! is_numeric($lat) || ! is_numeric($lng)) {
             return '<!-- google_map: lat and lng are required -->';
         }
 
         if ($provider === 'google' && empty($key)) {
-            return '<!-- google_map: GOOGLE_MAPS_API_KEY not configured -->';
+            return $this->unavailable($id, $width, $height);
         }
 
-        return view('statamic-google-maps::map', [
+        return view('alt-google-maps::map', [
             'lat'               => (float) $lat,
             'lng'               => (float) $lng,
             'zoom'              => $zoom,
@@ -60,26 +62,26 @@ class GoogleMapTag extends Tags
         $clustering   = filter_var($this->params->get('clustering', false), FILTER_VALIDATE_BOOLEAN);
         $clusterColor = (string) $this->params->get('cluster_color', '');
         $zoom        = $this->params->get('zoom') !== null ? (int) $this->params->get('zoom') : null;
-        $height      = (int) $this->params->get('height', config('statamic-google-maps.map_height', 420));
+        $height      = (int) $this->params->get('height', config('alt-google-maps.map_height', 420));
         $width       = $this->params->get('width', '100%');
         $id          = $this->params->get('id', 'gmap-multi-' . uniqid());
-        $provider    = $this->params->get('provider', config('statamic-google-maps.map_provider', 'google'));
-        $key         = config('statamic-google-maps.api_key', '');
-        $mapType     = $this->params->get('map_type', config('statamic-google-maps.map_type', 'roadmap'));
-        $defaultZoom = (int) $this->params->get('default_zoom', config('statamic-google-maps.defaults.zoom', 13));
+        $provider    = $this->params->get('provider', config('alt-google-maps.map_provider', 'google'));
+        $key         = config('alt-google-maps.api_key', '');
+        $mapType     = $this->params->get('map_type', config('alt-google-maps.map_type', 'roadmap'));
+        $defaultZoom = (int) $this->params->get('default_zoom', config('alt-google-maps.defaults.zoom', 13));
 
-        // Decode to validate; pass raw JSON string to the view
         $markers = json_decode($markersJson, true);
-        if (! is_array($markers) || empty($markers)) {
+        $safeMarkersJson = is_array($markers) ? $this->safeMarkersJson($markers) : '[]';
+        if ($safeMarkersJson === '[]') {
             return '<!-- google_map:multi: no valid markers -->';
         }
 
         if ($provider === 'google' && empty($key)) {
-            return '<!-- google_map:multi: GOOGLE_MAPS_API_KEY not configured -->';
+            return $this->unavailable($id, $width, $height);
         }
 
-        return view('statamic-google-maps::map-multi', [
-            'markers_json'  => $markersJson,
+        return view('alt-google-maps::map-multi', [
+            'markers_json'  => $safeMarkersJson,
             'clustering'    => $clustering,
             'cluster_color' => $clusterColor,
             'zoom'         => $zoom,
@@ -104,9 +106,9 @@ class GoogleMapTag extends Tags
         $zoom = (int) $this->params->get('zoom', 13);
         $w    = (int) $this->params->get('width', 600);
         $h    = (int) $this->params->get('height', 300);
-        $key  = config('statamic-google-maps.api_key', '');
+        $key  = config('alt-google-maps.api_key', '');
 
-        if ($lat === null || $lng === null || empty($key)) {
+        if (! is_numeric($lat) || ! is_numeric($lng) || empty($key)) {
             return '';
         }
 
@@ -116,5 +118,62 @@ class GoogleMapTag extends Tags
         return "https://maps.googleapis.com/maps/api/staticmap?"
             . "center={$lat},{$lng}&zoom={$zoom}&size={$w}x{$h}"
             . "&markers=color:red%7C{$lat},{$lng}&key=" . urlencode($key);
+    }
+
+    /**
+     * Encode markers for a script block, keeping only the fields the map uses and cleaning popup HTML.
+     *
+     * @param  array<int|string, mixed>  $markers
+     */
+    private function safeMarkersJson(array $markers): string
+    {
+        $safe = array_values(array_filter(array_map(fn ($marker) => $this->safeMarker($marker), $markers)));
+
+        return (string) json_encode($safe, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+    }
+
+    /**
+     * @return array{lat: float, lng: float, infobox_title: string, infobox_content: string, iconJson: string|array<mixed>}|null
+     */
+    private function safeMarker(mixed $marker): ?array
+    {
+        if (! is_array($marker) || ! is_numeric($marker['lat'] ?? null) || ! is_numeric($marker['lng'] ?? null)) {
+            return null;
+        }
+
+        $icon = $marker['iconJson'] ?? '';
+
+        return [
+            'lat'             => (float) $marker['lat'],
+            'lng'             => (float) $marker['lng'],
+            'infobox_title'   => HtmlSanitizer::clean($this->scalarText($marker['infobox_title'] ?? '')),
+            'infobox_content' => HtmlSanitizer::clean($this->scalarText($marker['infobox_content'] ?? '')),
+            'iconJson'        => is_string($icon) || is_array($icon) ? $icon : '',
+        ];
+    }
+
+    private function scalarText(mixed $value): string
+    {
+        return is_scalar($value) ? (string) $value : '';
+    }
+
+    /**
+     * Render a visible placeholder when the Google provider is selected but no API key is set.
+     *
+     * @param  string  $id
+     * @param  string  $width
+     * @param  int  $height
+     * @return string
+     */
+    private function unavailable(string $id, string $width, int $height): string
+    {
+        Log::warning('Alt Google Maps: the Google provider is selected but GOOGLE_MAPS_API_KEY is not set.');
+
+        return view('alt-google-maps::map-unavailable', [
+            'id'      => $id,
+            'width'   => $width,
+            'height'  => $height,
+            'message' => 'This map cannot be shown because no Google Maps API key has been configured.',
+        ])->render();
     }
 }

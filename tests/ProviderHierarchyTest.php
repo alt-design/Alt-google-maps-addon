@@ -16,7 +16,7 @@ function tag(array $params): GoogleMapTag
 }
 
 it('uses per-field provider over global', function () {
-    config(['statamic-google-maps.map_provider' => 'google']);
+    config(['alt-google-maps.map_provider' => 'google']);
 
     $ft = (new GoogleMapsFieldtype)->setField(new \Statamic\Fields\Field('map', [
         'type'         => 'google_maps',
@@ -28,7 +28,7 @@ it('uses per-field provider over global', function () {
 });
 
 it('falls back to global provider when blank', function () {
-    config(['statamic-google-maps.map_provider' => 'osm']);
+    config(['alt-google-maps.map_provider' => 'osm']);
 
     $ft = (new GoogleMapsFieldtype)->setField(new \Statamic\Fields\Field('map', [
         'type'         => 'google_maps',
@@ -62,31 +62,40 @@ it('truncates long address in preProcessIndex', function () {
 });
 
 it('renders OSM branch in google_map tag', function () {
-    config(['statamic-google-maps.map_provider' => 'osm']);
+    config(['alt-google-maps.map_provider' => 'osm']);
     $out = tag(['lat' => '51.5', 'lng' => '-0.12', 'zoom' => '10'])->index();
     expect($out)->toContain('leaflet')
         ->not->toContain('maps.googleapis.com/maps/api/js');
 });
 
 it('renders Google branch with API key in google_map tag', function () {
-    config(['statamic-google-maps.map_provider' => 'google', 'statamic-google-maps.api_key' => 'XYZ']);
+    config(['alt-google-maps.map_provider' => 'google', 'alt-google-maps.api_key' => 'XYZ']);
     $out = tag(['lat' => '1', 'lng' => '2'])->index();
     expect($out)->toContain('maps.googleapis.com/maps/api/js')
         ->toContain('key=XYZ');
 });
 
 it('warns when Google API key is missing in tag', function () {
-    config(['statamic-google-maps.api_key' => '', 'statamic-google-maps.map_provider' => 'google']);
+    config(['alt-google-maps.api_key' => '', 'alt-google-maps.map_provider' => 'google']);
     expect(tag(['lat' => '1', 'lng' => '2'])->index())
-        ->toContain('GOOGLE_MAPS_API_KEY not configured');
+        ->toContain('no Google Maps API key has been configured');
 });
 
 it('warns when coords are missing in tag', function () {
     expect(tag([])->index())->toContain('lat and lng are required');
 });
 
+it('renders no map when coords are blank or not numbers', function (array $params) {
+    config(['alt-google-maps.map_provider' => 'osm']);
+    expect(tag($params)->index())->toContain('lat and lng are required');
+})->with([
+    'blank strings' => [['lat' => '', 'lng' => '']],
+    'blank lng' => [['lat' => '53.48', 'lng' => '']],
+    'not numbers' => [['lat' => 'north', 'lng' => 'west']],
+]);
+
 it('exposes per-field map_height in augment', function () {
-    config(['statamic-google-maps.map_height' => 420]);
+    config(['alt-google-maps.map_height' => 420]);
     $ft = (new GoogleMapsFieldtype)->setField(new \Statamic\Fields\Field('map', [
         'type'       => 'google_maps',
         'map_height' => 250,
@@ -96,16 +105,16 @@ it('exposes per-field map_height in augment', function () {
 });
 
 it('falls back to global map_height in augment', function () {
-    config(['statamic-google-maps.map_height' => 600]);
+    config(['alt-google-maps.map_height' => 600]);
     $out = (new GoogleMapsFieldtype)->augment(['lat' => 1, 'lng' => 2, 'zoom' => 10]);
     expect($out['map_height'])->toBe(600);
 });
 
 it('uses per-field default lat/lng/zoom in defaultValue', function () {
     config([
-        'statamic-google-maps.defaults.lat'  => 10.0,
-        'statamic-google-maps.defaults.lng'  => 20.0,
-        'statamic-google-maps.defaults.zoom' => 5,
+        'alt-google-maps.defaults.lat'  => 10.0,
+        'alt-google-maps.defaults.lng'  => 20.0,
+        'alt-google-maps.defaults.zoom' => 5,
     ]);
 
     $ft = (new GoogleMapsFieldtype)->setField(new \Statamic\Fields\Field('map', [
@@ -123,9 +132,9 @@ it('uses per-field default lat/lng/zoom in defaultValue', function () {
 
 it('falls back to global defaults in defaultValue', function () {
     config([
-        'statamic-google-maps.defaults.lat'  => 10.0,
-        'statamic-google-maps.defaults.lng'  => 20.0,
-        'statamic-google-maps.defaults.zoom' => 7,
+        'alt-google-maps.defaults.lat'  => 10.0,
+        'alt-google-maps.defaults.lng'  => 20.0,
+        'alt-google-maps.defaults.zoom' => 7,
     ]);
 
     $defaults = (new GoogleMapsFieldtype)->defaultValue();
@@ -135,16 +144,16 @@ it('falls back to global defaults in defaultValue', function () {
 });
 
 it('urlencodes the API key in static_map_url', function () {
-    config(['statamic-google-maps.api_key' => 'abc&def=xyz']);
+    config(['alt-google-maps.api_key' => 'abc&def=xyz']);
     $out = (new GoogleMapsFieldtype)->augment(['lat' => 1, 'lng' => 2, 'zoom' => 10]);
     expect($out['static_map_url'])->toContain('key=abc%26def%3Dxyz');
 });
 
 it('returns marker_icon as array when URL is set', function () {
     config([
-        'statamic-google-maps.marker_icon_url'    => 'https://example.com/pin.png',
-        'statamic-google-maps.marker_icon_width'  => 32,
-        'statamic-google-maps.marker_icon_height' => 40,
+        'alt-google-maps.marker_icon_url'    => 'https://example.com/pin.png',
+        'alt-google-maps.marker_icon_width'  => 32,
+        'alt-google-maps.marker_icon_height' => 40,
     ]);
     $out = (new GoogleMapsFieldtype)->augment(['lat' => 1, 'lng' => 2, 'zoom' => 10]);
     expect($out['marker_icon'])->toBeArray()
@@ -154,13 +163,78 @@ it('returns marker_icon as array when URL is set', function () {
 });
 
 it('returns marker_icon as null when no URL is set', function () {
-    config(['statamic-google-maps.marker_icon_url' => '']);
+    config(['alt-google-maps.marker_icon_url' => '']);
     $out = (new GoogleMapsFieldtype)->augment(['lat' => 1, 'lng' => 2, 'zoom' => 10]);
     expect($out['marker_icon'])->toBeNull();
 });
 
 it('overrides config provider with tag param', function () {
-    config(['statamic-google-maps.map_provider' => 'google', 'statamic-google-maps.api_key' => 'X']);
+    config(['alt-google-maps.map_provider' => 'google', 'alt-google-maps.api_key' => 'X']);
     $out = tag(['lat' => '1', 'lng' => '2', 'provider' => 'osm'])->index();
     expect($out)->toContain('leaflet');
+});
+
+it('sanitises infobox values again when augmenting stored data', function () {
+    $ft = (new GoogleMapsFieldtype)->setField(new \Statamic\Fields\Field('map', ['type' => 'google_maps']));
+
+    $out = $ft->augment([
+        'lat' => 1, 'lng' => 2, 'zoom' => 10,
+        'infobox_title'   => '<b>Office</b>',
+        'infobox_content' => '<p>Open</p><svg/onload=alert(1)>',
+    ]);
+
+    $marker = json_decode($out['markers_json'], true)[0];
+    expect($marker['infobox_title'])->toBe('Office');
+    expect($marker['infobox_content'])->not->toContain('onload');
+});
+
+it('re-encodes markers passed to the multi tag so they cannot close the script block', function () {
+    config(['alt-google-maps.map_provider' => 'osm']);
+    $markers = json_encode([[
+        'lat' => 53.48,
+        'lng' => -2.24,
+        'infobox_title' => '</script><script>alert(1)</script>',
+        'infobox_content' => '<p>Open</p><img src=x onerror=alert(1)>',
+        'iconJson' => '</script><script>alert(2)</script>',
+    ]], JSON_UNESCAPED_SLASHES);
+
+    $out = tag(['markers' => $markers])->multi();
+
+    expect($out)->not->toContain('</script><script>alert(1)')
+        ->and($out)->not->toContain('</script><script>alert(2)')
+        ->and($out)->not->toContain('onerror=alert')
+        ->and($out)->toContain('53.48');
+});
+
+it('points editors to the addon settings page in field instructions and errors', function () {
+    $files = [
+        __DIR__.'/../src/Fieldtypes/GoogleMapsFieldtype.php',
+        __DIR__.'/../src/Http/Controllers/GeocodingController.php',
+    ];
+
+    foreach ($files as $file) {
+        expect(file_get_contents($file))->not->toContain('Tools → Google Maps');
+    }
+});
+
+it('keeps only known marker fields and cleans popup values whatever their type', function () {
+    config(['alt-google-maps.map_provider' => 'osm']);
+    $markers = json_encode([
+        [
+            'lat' => '53.48',
+            'lng' => -2.24,
+            'infobox_title' => ['<img src=x onerror=alert(1)>'],
+            'infobox_content' => ['nested' => '<svg onload=alert(2)>'],
+            'extra' => '<script>alert(3)</script>',
+        ],
+        ['lat' => 'north', 'lng' => 'west', 'infobox_title' => 'Dropped marker'],
+    ], JSON_UNESCAPED_SLASHES);
+
+    $out = tag(['markers' => $markers])->multi();
+
+    expect($out)->not->toContain('onerror=alert')
+        ->and($out)->not->toContain('onload=alert')
+        ->and($out)->not->toContain('alert(3)')
+        ->and($out)->not->toContain('Dropped marker')
+        ->and($out)->toContain('"lat":53.48');
 });
