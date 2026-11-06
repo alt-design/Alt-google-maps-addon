@@ -18,7 +18,7 @@ Alt Google Maps adds a location fieldtype to Statamic. Editors search for an add
 
 - Statamic 6.40 or later
 - PHP 8.2 or later
-- For Google Maps, an API key with the Maps JavaScript API enabled. OpenStreetMap needs no key and no account.
+- For Google Maps, an API key with the Maps JavaScript API enabled, which you can [create in Google Cloud Console](https://developers.google.com/maps/documentation/javascript/get-api-key). OpenStreetMap needs no key and no account.
 
 Google Maps is a paid Google service with a free monthly allowance. Check [Google's current pricing](https://mapsplatform.google.com/pricing/) before using it on a busy site.
 

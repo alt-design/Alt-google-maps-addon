@@ -8,7 +8,7 @@ The maps can be drawn by Google Maps (needs an API key) or by OpenStreetMap thro
 
 - PHP 8.2 or later
 - Statamic 6.40 or later (Statamic 5 is not supported)
-- Google Maps provider only: a Google Maps API key with the **Maps JavaScript API** enabled. The **Geocoding API** is needed only if you call the control panel geocode route with the Google provider, which the fieldtype itself does not do.
+- Google Maps provider only: a Google Maps API key with the **Maps JavaScript API** enabled ([how to create one](https://developers.google.com/maps/documentation/javascript/get-api-key)). The **Geocoding API** is needed only if you call the control panel geocode route with the Google provider, which the fieldtype itself does not do.
 - OpenStreetMap provider: no key and no account.
 
 Google Maps is a paid Google service with a free monthly allowance. Check [Google's current pricing](https://mapsplatform.google.com/pricing/) before using it on a busy site.
