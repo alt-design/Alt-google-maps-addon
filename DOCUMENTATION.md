@@ -157,6 +157,23 @@ The control panel bundles Leaflet and does not load anything from `unpkg.com`.
 
 If your privacy policy or cookie consent set-up needs to cover these requests, list them there. The OpenStreetMap tile servers and Nominatim are public services run by the OpenStreetMap Foundation; read their usage policies before using the addon for high traffic.
 
+## For contributors
+
+| Part | Where |
+| --- | --- |
+| Fieldtype (PHP) | `src/Fieldtypes/GoogleMapsFieldtype.php` |
+| Fieldtype (control panel, Vue) | `resources/js/components/fieldtypes`, built to `resources/dist` |
+| Antlers tags | `src/Tags/GoogleMapTag.php`, views in `resources/views` |
+| Settings blueprint | `resources/blueprints/settings.yaml`, applied by `src/Settings` |
+| Geocoding proxy for OpenStreetMap | `src/Http/Controllers/GeocodingController.php`, routes in `routes/cp.php` |
+| HTML sanitiser for popup content | `src/Support/HtmlSanitizer.php` |
+
+Settings saved on the addon settings page override the config at boot, so `config('alt-google-maps.map_provider')` always holds the resolved value.
+
+The control panel code is built with Vite and needs Node 22 or later. `resources/dist` is committed, so rebuild it with `npm run build` and commit the result after changing anything under `resources/js` or `resources/css`.
+
+`./vendor/bin/pest` covers the geocoding controller and its permission, the settings and config override order, the augmented values, the tags and the sanitiser. `npm test` covers the geocoding and script loading helpers. Pest writes its temporary users and containers to the system temp directory, not into the repository.
+
 ## Support
 
 Support is through GitHub issues: https://github.com/alt-design/Alt-google-maps-addon/issues
