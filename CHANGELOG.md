@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-11-06
+
+### Added
+
+- The settings page is linked from **Alt Tools → Editing** in the control panel nav, for super users and roles that can edit the addon's settings. It is still reachable from **Tools → Addons**.
+
+### Changed
+
+- The README links to Google's guide for creating a Maps API key.
+
 ## [1.0.0] - 2026-11-06
 
 ### Added
