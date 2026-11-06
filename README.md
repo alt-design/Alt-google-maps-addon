@@ -45,7 +45,7 @@ GOOGLE_MAPS_PROVIDER=google
 GOOGLE_MAPS_API_KEY=
 ```
 
-You can also set these, along with the default location, popup text, map style and marker icon, in the control panel under **Tools, Addons, Alt Google Maps**.
+You can also set these, along with the default location, popup text, map style and marker icon, in the control panel under **Alt Tools, Editing, Alt Google Maps** (also reachable from **Tools, Addons**).
 
 Add a **Google Maps** field to a blueprint:
 

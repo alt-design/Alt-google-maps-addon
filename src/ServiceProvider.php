@@ -4,6 +4,8 @@ namespace AltDesign\AltGoogleMapsAddon;
 
 use AltDesign\AltGoogleMapsAddon\Settings\MapSettings;
 use AltDesign\AltGoogleMapsAddon\Settings\SettingsBlueprint;
+use AltDesign\AltGoogleMapsAddon\Support\AltToolsNav;
+use Statamic\Facades\CP\Nav;
 use Statamic\Facades\Permission;
 use Statamic\Providers\AddonServiceProvider;
 use Statamic\Statamic;
@@ -54,8 +56,21 @@ class ServiceProvider extends AddonServiceProvider
             fn () => SettingsBlueprint::contents(__DIR__ . '/../resources/blueprints/settings.yaml')
         );
         $this->registerPermissions();
+        $this->addToNav();
         $this->applySavedSettings();
         $this->provideSettingsToScript();
+    }
+
+    /**
+     * Link the settings page from the Editing group in the Alt Tools section of the nav.
+     *
+     * @return void
+     */
+    protected function addToNav(): void
+    {
+        Nav::extend(function ($nav) {
+            AltToolsNav::add($nav, 'editing', 'Alt Google Maps', ['addons.settings.edit', 'alt-google-maps'], 'edit alt-design/alt-google-maps settings', ['travel-map', 'pin']);
+        });
     }
 
     /**
