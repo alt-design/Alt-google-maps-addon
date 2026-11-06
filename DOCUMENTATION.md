@@ -46,7 +46,7 @@ GOOGLE_MAPS_DEFAULT_ZOOM=13
 
 `GOOGLE_MAPS_PROVIDER` is `google` (the default) or `osm`. With `google` and no key, the control panel field and the front end tags show a message instead of a map.
 
-The same settings, plus popup defaults, a map style and a default marker icon, can be set in the control panel under **Tools, Addons, Alt Google Maps**. Values saved there are written to `resources/addons/alt-google-maps.yaml`, so they are committed and deployed with the site. A blank setting means "use the `.env` or config file value".
+The same settings, plus popup defaults, a map style and a default marker icon, can be set in the control panel under **Alt Tools, Editing, Alt Google Maps** (also reachable from **Tools, Addons**). Values saved there are written to `resources/addons/alt-google-maps.yaml`, so they are committed and deployed with the site. A blank setting means "use the `.env` or config file value".
 
 Settings are resolved in this order, highest first:
 
